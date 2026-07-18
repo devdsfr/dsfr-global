@@ -11,6 +11,15 @@ const REFRESH_KEY = 'dsfr.refresh';
 /**
  * Central authentication state. Uses Angular Signals so the shell and guards
  * react automatically to login/logout.
+ *
+ * Note: authentication state is tracked with an explicit `signal<boolean>`
+ * (isAuthenticatedSignal), not a `computed()` over a plain sessionStorage
+ * getter. A `computed()` only re-evaluates when a *signal* it read changes;
+ * reading sessionStorage inside it is invisible to Angular's reactivity, so
+ * the computed value would be calculated once and then frozen forever —
+ * which caused the authGuard to keep rejecting navigation to /dashboard
+ * right after a successful login (token was stored, but isAuthenticated()
+ * still returned its stale initial value).
  */
 @Injectable({ providedIn: 'root' })
 export class AuthService {
@@ -18,11 +27,13 @@ export class AuthService {
   private readonly api = `${environment.apiUrl}/auth`;
 
   private readonly userSignal = signal<User | null>(null);
+  private readonly isAuthenticatedSignal = signal<boolean>(this.readAccessToken() !== null);
+
   readonly user = computed(() => this.userSignal());
-  readonly isAuthenticated = computed(() => this.accessToken !== null);
+  readonly isAuthenticated = computed(() => this.isAuthenticatedSignal());
 
   get accessToken(): string | null {
-    return sessionStorage.getItem(ACCESS_KEY);
+    return this.readAccessToken();
   }
 
   register(name: string, email: string, password: string): Observable<User> {
@@ -53,6 +64,7 @@ export class AuthService {
     sessionStorage.removeItem(ACCESS_KEY);
     sessionStorage.removeItem(REFRESH_KEY);
     this.userSignal.set(null);
+    this.isAuthenticatedSignal.set(false);
   }
 
   loadMe(): Observable<User> {
@@ -64,5 +76,10 @@ export class AuthService {
   private storeTokens(tokens: TokenPair): void {
     sessionStorage.setItem(ACCESS_KEY, tokens.access_token);
     sessionStorage.setItem(REFRESH_KEY, tokens.refresh_token);
+    this.isAuthenticatedSignal.set(true);
+  }
+
+  private readAccessToken(): string | null {
+    return sessionStorage.getItem(ACCESS_KEY);
   }
 }
