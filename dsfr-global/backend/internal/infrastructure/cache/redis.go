@@ -14,9 +14,14 @@ import (
 // TokenStore persists opaque tokens (refresh / password reset) with TTL.
 type TokenStore struct{ client *redis.Client }
 
-// NewTokenStore connects to Redis and pings it to fail fast on bad config.
-func NewTokenStore(ctx context.Context, addr, password string) (*TokenStore, error) {
-	c := redis.NewClient(&redis.Options{Addr: addr, Password: password})
+// NewTokenStore parses a redis:// or rediss:// URL, connects, and pings to fail
+// fast on bad config. Render Key Value and most managed hosts provide such a URL.
+func NewTokenStore(ctx context.Context, url string) (*TokenStore, error) {
+	opts, err := redis.ParseURL(url)
+	if err != nil {
+		return nil, fmt.Errorf("redis url: %w", err)
+	}
+	c := redis.NewClient(opts)
 	if err := c.Ping(ctx).Err(); err != nil {
 		return nil, fmt.Errorf("redis ping: %w", err)
 	}

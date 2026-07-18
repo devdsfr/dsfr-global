@@ -29,7 +29,12 @@ func main() {
 	}
 	defer pool.Close()
 
-	store, err := cache.NewTokenStore(ctx, cfg.RedisAddr, cfg.RedisPassword)
+	// Ensure schema exists (Neon has no init hooks). Idempotent.
+	if err := postgres.Migrate(ctx, pool); err != nil {
+		fatal("migrate", err)
+	}
+
+	store, err := cache.NewTokenStore(ctx, cfg.RedisURL)
 	if err != nil {
 		fatal("redis", err)
 	}

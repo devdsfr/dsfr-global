@@ -12,8 +12,7 @@ type Config struct {
 	Env                string
 	HTTPPort           string
 	DatabaseURL        string
-	RedisAddr          string
-	RedisPassword      string
+	RedisURL           string
 	JWTSecret          string
 	AccessTokenTTL     time.Duration
 	RefreshTokenTTL    time.Duration
@@ -23,13 +22,14 @@ type Config struct {
 }
 
 // Load reads configuration from the environment, applying sane defaults for dev.
+// It follows managed-host conventions: Render injects PORT; Neon and Render Key
+// Value provide full DATABASE_URL / REDIS_URL connection strings.
 func Load() (*Config, error) {
 	cfg := &Config{
 		Env:                getEnv("APP_ENV", "development"),
-		HTTPPort:           getEnv("HTTP_PORT", "8080"),
+		HTTPPort:           firstNonEmpty(os.Getenv("PORT"), getEnv("HTTP_PORT", "8080")),
 		DatabaseURL:        getEnv("DATABASE_URL", "postgres://dsfr:dsfr@localhost:5432/dsfr_global?sslmode=disable"),
-		RedisAddr:          getEnv("REDIS_ADDR", "localhost:6379"),
-		RedisPassword:      getEnv("REDIS_PASSWORD", ""),
+		RedisURL:           getEnv("REDIS_URL", "redis://localhost:6379"),
 		JWTSecret:          getEnv("JWT_SECRET", ""),
 		AccessTokenTTL:     15 * time.Minute,
 		RefreshTokenTTL:    7 * 24 * time.Hour,
@@ -52,4 +52,13 @@ func getEnv(key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, v := range values {
+		if v != "" {
+			return v
+		}
+	}
+	return ""
 }

@@ -1,7 +1,19 @@
+# dependencies
 node_modules/
+# builds
 dist/
 bin/
+frontend/.angular/
+frontend/out-tsc/
+# go
+backend/bin/
+# env & secrets
 .env
+.env.*
+!.env.example
+!.env.production.example
+# misc
 *.log
-.angular/
 tsconfig.tsbuildinfo
+.DS_Store
+.idea/
