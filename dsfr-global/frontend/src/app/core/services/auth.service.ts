@@ -1,6 +1,6 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, computed, inject, signal } from '@angular/core';
-import { Observable, tap } from 'rxjs';
+import { Observable, finalize, shareReplay, tap } from 'rxjs';
 
 import { environment } from '../../../environments/environment';
 import { LoginResponse, TokenPair, User } from '../models/user.model';
@@ -32,6 +32,10 @@ export class AuthService {
   readonly user = computed(() => this.userSignal());
   readonly isAuthenticated = computed(() => this.isAuthenticatedSignal());
 
+  /** In-flight refresh call, shared so concurrent 401s don't each consume
+   *  (and invalidate) the single-use refresh token — see refreshOnce(). */
+  private refreshInFlight$: Observable<TokenPair> | null = null;
+
   get accessToken(): string | null {
     return this.readAccessToken();
   }
@@ -56,10 +60,27 @@ export class AuthService {
       .pipe(tap((tokens) => this.storeTokens(tokens)));
   }
 
+  /**
+   * Same as refresh(), but de-duplicated: if a refresh is already in flight
+   * (e.g. two API calls 401'd at nearly the same time), later callers reuse
+   * the same request instead of firing a second one. The backend's refresh
+   * token is single-use/rotated, so two parallel refresh calls would make
+   * the second one fail even though the session is actually fine.
+   */
+  refreshOnce(): Observable<TokenPair> {
+    if (!this.refreshInFlight$) {
+      this.refreshInFlight$ = this.refresh().pipe(
+        finalize(() => (this.refreshInFlight$ = null)),
+        shareReplay({ bufferSize: 1, refCount: false })
+      );
+    }
+    return this.refreshInFlight$;
+  }
+
   logout(): void {
     const refresh_token = sessionStorage.getItem(REFRESH_KEY);
     if (refresh_token) {
-      this.http.post(`${this.api}/logout`, { refresh_token }).subscribe();
+      this.http.post(`${this.api}/logout`, { refresh_token }).subscribe({ error: () => void 0 });
     }
     sessionStorage.removeItem(ACCESS_KEY);
     sessionStorage.removeItem(REFRESH_KEY);
