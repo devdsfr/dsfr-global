@@ -28,6 +28,17 @@ CREATE TABLE IF NOT EXISTS users (
 );
 
 CREATE INDEX IF NOT EXISTS idx_users_email ON users (email);
+
+-- Opaque auth tokens (refresh + password reset), replacing the former Redis store.
+CREATE TABLE IF NOT EXISTS auth_tokens (
+    token       TEXT PRIMARY KEY,
+    user_id     TEXT NOT NULL,
+    kind        TEXT NOT NULL CHECK (kind IN ('refresh','reset')),
+    expires_at  TIMESTAMPTZ NOT NULL,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_auth_tokens_expires ON auth_tokens (expires_at);
 `
 
 // Migrate applies the schema. Safe to run on every startup.

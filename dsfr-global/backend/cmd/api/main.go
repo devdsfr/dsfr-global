@@ -8,7 +8,6 @@ import (
 
 	"github.com/dsfr-global/backend/internal/application/auth"
 	"github.com/dsfr-global/backend/internal/config"
-	"github.com/dsfr-global/backend/internal/infrastructure/cache"
 	"github.com/dsfr-global/backend/internal/infrastructure/persistence/postgres"
 	"github.com/dsfr-global/backend/internal/infrastructure/security"
 	"github.com/dsfr-global/backend/internal/interfaces/http/handlers"
@@ -34,13 +33,9 @@ func main() {
 		fatal("migrate", err)
 	}
 
-	store, err := cache.NewTokenStore(ctx, cfg.RedisURL)
-	if err != nil {
-		fatal("redis", err)
-	}
-
 	// Dependency injection: wire infrastructure into application services.
 	users := postgres.NewUserRepository(pool)
+	store := postgres.NewTokenStore(pool)
 	hasher := security.NewBcryptHasher()
 	tokens := security.NewTokenManager(cfg.JWTSecret, cfg.AccessTokenTTL)
 	authService := auth.NewService(users, hasher, tokens, store, auth.LogMailer{},

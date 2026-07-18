@@ -1,8 +1,9 @@
 # Render Blueprint for DSFR Global (lives at repo root; project is under ./dsfr-global)
 # Docs: https://render.com/docs/blueprint-spec
 #
-# Provisions: Go API (Docker) + Angular static site + Key Value (Redis).
+# Provisions: Go API (Docker) + Angular static site.
 # PostgreSQL is external (Neon) — set DATABASE_URL manually in the dashboard.
+# Auth tokens (refresh/reset) are stored in Postgres, so no Redis is needed.
 
 services:
   # ---- Backend API (Go + Gin, Docker) ----
@@ -21,11 +22,6 @@ services:
         generateValue: true          # Render generates a strong secret
       - key: DATABASE_URL
         sync: false                  # paste your Neon pooled connection string here
-      - key: REDIS_URL
-        fromService:
-          type: redis
-          name: dsfr-global-redis
-          property: connectionString
       - key: ALLOWED_ORIGINS
         value: https://dsfr-global-web.onrender.com
 
@@ -44,9 +40,3 @@ services:
       - path: /*
         name: X-Frame-Options
         value: DENY
-
-  # ---- Redis (Key Value) ----
-  - type: redis
-    name: dsfr-global-redis
-    plan: free
-    ipAllowList: []                  # reachable only from Render services

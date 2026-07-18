@@ -8,7 +8,6 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/dsfr-global/backend/internal/domain/user"
-	"github.com/dsfr-global/backend/internal/infrastructure/cache"
 	"github.com/dsfr-global/backend/internal/infrastructure/security"
 )
 
@@ -17,12 +16,22 @@ type Mailer interface {
 	SendPasswordReset(ctx context.Context, email, token string) error
 }
 
+// TokenStore issues and consumes opaque refresh/reset tokens. The application
+// layer depends on this interface, not on a concrete backend (Postgres today).
+type TokenStore interface {
+	IssueRefreshToken(ctx context.Context, userID string, ttl time.Duration) (string, error)
+	ConsumeRefreshToken(ctx context.Context, token string) (string, error)
+	RevokeRefreshToken(ctx context.Context, token string) error
+	IssuePasswordResetToken(ctx context.Context, userID string, ttl time.Duration) (string, error)
+	ConsumePasswordResetToken(ctx context.Context, token string) (string, error)
+}
+
 // Service implements the authentication use cases.
 type Service struct {
 	users      user.Repository
 	hasher     security.PasswordHasher
 	tokens     *security.TokenManager
-	store      *cache.TokenStore
+	store      TokenStore
 	mailer     Mailer
 	refreshTTL time.Duration
 	resetTTL   time.Duration
@@ -30,7 +39,7 @@ type Service struct {
 
 // NewService wires the auth use cases (Dependency Injection at the composition root).
 func NewService(users user.Repository, hasher security.PasswordHasher, tokens *security.TokenManager,
-	store *cache.TokenStore, mailer Mailer, refreshTTL, resetTTL time.Duration) *Service {
+	store TokenStore, mailer Mailer, refreshTTL, resetTTL time.Duration) *Service {
 	return &Service{users: users, hasher: hasher, tokens: tokens, store: store,
 		mailer: mailer, refreshTTL: refreshTTL, resetTTL: resetTTL}
 }
