@@ -49,9 +49,11 @@ export class ShellComponent {
 
   readonly nav: NavItem[] = [
     { label: 'Dashboard', path: '/dashboard', icon: '📊' },
-    { label: 'My Journey', path: '/journey', icon: '🧭' },
-    { label: 'GAP Analysis', path: '/gap', icon: '🎯' },
+    { label: 'My Résumé', path: '/resume', icon: '📄' },
+    { label: 'Target Job', path: '/job', icon: '🎯' },
     { label: 'Interviews', path: '/interviews', icon: '🎤' },
+    { label: 'My Journey', path: '/journey', icon: '🧭' },
+    { label: 'GAP Analysis', path: '/gap', icon: '📈' },
     { label: 'Coach', path: '/coach', icon: '🤖' }
   ];
 

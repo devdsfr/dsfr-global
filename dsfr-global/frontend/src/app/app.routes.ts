@@ -29,6 +29,21 @@ export const routes: Routes = [
           import('./features/dashboard/dashboard.component').then((m) => m.DashboardComponent)
       },
       {
+        path: 'resume',
+        loadComponent: () =>
+          import('./features/resume/resume.component').then((m) => m.ResumeComponent)
+      },
+      {
+        path: 'job',
+        loadComponent: () =>
+          import('./features/job/job.component').then((m) => m.JobComponent)
+      },
+      {
+        path: 'interviews',
+        loadComponent: () =>
+          import('./features/interviews/interviews.component').then((m) => m.InterviewsComponent)
+      },
+      {
         path: 'journey',
         loadComponent: () =>
           import('./features/journey/journey.component').then((m) => m.JourneyComponent)
@@ -37,11 +52,6 @@ export const routes: Routes = [
         path: 'gap',
         loadComponent: () =>
           import('./features/gap-analysis/gap-analysis.component').then((m) => m.GapAnalysisComponent)
-      },
-      {
-        path: 'interviews',
-        loadComponent: () =>
-          import('./features/interviews/interviews.component').then((m) => m.InterviewsComponent)
       },
       {
         path: 'coach',

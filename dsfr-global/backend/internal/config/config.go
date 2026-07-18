@@ -13,6 +13,8 @@ type Config struct {
 	HTTPPort           string
 	DatabaseURL        string
 	JWTSecret          string
+	AnthropicAPIKey    string
+	AnthropicModel     string
 	AccessTokenTTL     time.Duration
 	RefreshTokenTTL    time.Duration
 	PasswordResetTTL   time.Duration
@@ -29,6 +31,8 @@ func Load() (*Config, error) {
 		HTTPPort:           firstNonEmpty(os.Getenv("PORT"), getEnv("HTTP_PORT", "8080")),
 		DatabaseURL:        getEnv("DATABASE_URL", "postgres://dsfr:dsfr@localhost:5432/dsfr_global?sslmode=disable"),
 		JWTSecret:          getEnv("JWT_SECRET", ""),
+		AnthropicAPIKey:    getEnv("ANTHROPIC_API_KEY", ""),
+		AnthropicModel:     getEnv("ANTHROPIC_MODEL", "claude-haiku-4-5-20251001"),
 		AccessTokenTTL:     15 * time.Minute,
 		RefreshTokenTTL:    7 * 24 * time.Hour,
 		PasswordResetTTL:   30 * time.Minute,

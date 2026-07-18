@@ -7,7 +7,9 @@ import (
 	"os"
 
 	"github.com/dsfr-global/backend/internal/application/auth"
+	"github.com/dsfr-global/backend/internal/application/practice"
 	"github.com/dsfr-global/backend/internal/config"
+	"github.com/dsfr-global/backend/internal/infrastructure/ai"
 	"github.com/dsfr-global/backend/internal/infrastructure/persistence/postgres"
 	"github.com/dsfr-global/backend/internal/infrastructure/security"
 	"github.com/dsfr-global/backend/internal/interfaces/http/handlers"
@@ -36,13 +38,23 @@ func main() {
 	// Dependency injection: wire infrastructure into application services.
 	users := postgres.NewUserRepository(pool)
 	store := postgres.NewTokenStore(pool)
+	careerRepo := postgres.NewCareerRepository(pool)
+	llm := ai.NewAnthropicClient(cfg.AnthropicAPIKey, cfg.AnthropicModel)
 	hasher := security.NewBcryptHasher()
 	tokens := security.NewTokenManager(cfg.JWTSecret, cfg.AccessTokenTTL)
+
 	authService := auth.NewService(users, hasher, tokens, store, auth.LogMailer{},
 		cfg.RefreshTokenTTL, cfg.PasswordResetTTL)
-	authHandler := handlers.NewAuthHandler(authService)
+	practiceService := practice.NewService(careerRepo, llm)
 
-	r := router.New(cfg, tokens, authHandler)
+	authHandler := handlers.NewAuthHandler(authService)
+	practiceHandler := handlers.NewPracticeHandler(practiceService)
+
+	if !llm.Configured() {
+		slog.Warn("ANTHROPIC_API_KEY not set: interview generation will return 503")
+	}
+
+	r := router.New(cfg, tokens, authHandler, practiceHandler)
 	slog.Info("dsfr-global api listening", "port", cfg.HTTPPort, "env", cfg.Env)
 	if err := r.Run(":" + cfg.HTTPPort); err != nil {
 		fatal("http", err)

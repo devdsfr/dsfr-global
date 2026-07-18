@@ -1,4 +1,5 @@
 import { Component, computed, inject, OnInit } from '@angular/core';
+import { RouterLink } from '@angular/router';
 
 import { AuthService } from '../../core/services/auth.service';
 
@@ -10,6 +11,7 @@ interface ScoreCard {
 @Component({
   selector: 'app-dashboard',
   standalone: true,
+  imports: [RouterLink],
   template: `
     <div class="p-8 max-w-6xl mx-auto">
       <header class="mb-8">
@@ -40,8 +42,11 @@ interface ScoreCard {
       <section class="card">
         <h2 class="font-semibold mb-2">Next mission</h2>
         <p class="text-gray-400 text-sm">
-          Upload your résumé and paste a job posting to unlock your first GAP Analysis —
-          we will tell you exactly how compatible you are with the role.
+          Register your <a routerLink="/resume" class="text-brand hover:text-brand-hover">résumé</a>
+          and your <a routerLink="/job" class="text-brand hover:text-brand-hover">target job</a>,
+          then start your first
+          <a routerLink="/interviews" class="text-brand hover:text-brand-hover">interview practice</a> —
+          the interviewer speaks, the teleprompter shows what to answer.
         </p>
       </section>
     </div>

@@ -11,7 +11,8 @@ import (
 )
 
 // New builds the Gin engine with all routes and middlewares.
-func New(cfg *config.Config, tokens *security.TokenManager, authHandler *handlers.AuthHandler) *gin.Engine {
+func New(cfg *config.Config, tokens *security.TokenManager,
+	authHandler *handlers.AuthHandler, practiceHandler *handlers.PracticeHandler) *gin.Engine {
 	if cfg.Env == "production" {
 		gin.SetMode(gin.ReleaseMode)
 	}
@@ -38,6 +39,13 @@ func New(cfg *config.Config, tokens *security.TokenManager, authHandler *handler
 		protected.Use(middleware.RequireAuth(tokens))
 		{
 			protected.GET("/me", authHandler.Me)
+
+			protected.GET("/resume", practiceHandler.GetResume)
+			protected.PUT("/resume", practiceHandler.PutResume)
+			protected.GET("/job", practiceHandler.GetJob)
+			protected.PUT("/job", practiceHandler.PutJob)
+			protected.POST("/interview/generate", practiceHandler.GenerateInterview)
+			protected.GET("/interview/latest", practiceHandler.LatestInterview)
 		}
 	}
 	return r

@@ -24,6 +24,10 @@ services:
         sync: false                  # paste your Neon pooled connection string here
       - key: ALLOWED_ORIGINS
         value: https://dsfr-global-web.onrender.com
+      - key: ANTHROPIC_API_KEY
+        sync: false                  # paste your Anthropic API key here (console.anthropic.com)
+      - key: ANTHROPIC_MODEL
+        value: claude-haiku-4-5-20251001
 
   # ---- Frontend (Angular, static site) ----
   - type: web
