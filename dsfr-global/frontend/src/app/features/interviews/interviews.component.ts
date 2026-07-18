@@ -175,11 +175,16 @@ export class InterviewsComponent implements OnInit, OnDestroy {
       },
       error: (err) => {
         this.stage.set('ready');
-        this.error.set(
-          err.status === 503
-            ? 'AI is not configured on the server yet (missing API key). Ask the admin to set it.'
-            : 'Could not generate the interview. Please try again.'
-        );
+        const serverMessage: string | undefined = err.error?.error;
+        if (err.status === 503) {
+          this.error.set('AI is not configured on the server yet (missing API key). Ask the admin to set it.');
+        } else if (serverMessage) {
+          // Surface the real upstream error (e.g. AI provider quota/billing issues)
+          // so the user knows what to fix instead of retrying blindly.
+          this.error.set(serverMessage);
+        } else {
+          this.error.set('Could not generate the interview. Please try again.');
+        }
       }
     });
   }

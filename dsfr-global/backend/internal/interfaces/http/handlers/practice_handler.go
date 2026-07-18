@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"errors"
+	"log/slog"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -103,6 +104,7 @@ func (h *PracticeHandler) GenerateInterview(c *gin.Context) {
 	}
 	i, err := h.svc.GenerateInterview(c.Request.Context(), userID, in)
 	if err != nil {
+		slog.Error("interview generation failed", "user", userID, "error", err)
 		respondCareerError(c, err)
 		return
 	}
