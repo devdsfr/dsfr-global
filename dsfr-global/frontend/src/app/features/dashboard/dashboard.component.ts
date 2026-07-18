@@ -1,4 +1,4 @@
-import { Component, inject, OnInit, signal } from '@angular/core';
+import { Component, computed, inject, OnInit } from '@angular/core';
 
 import { AuthService } from '../../core/services/auth.service';
 
@@ -13,8 +13,12 @@ interface ScoreCard {
   template: `
     <div class="p-8 max-w-6xl mx-auto">
       <header class="mb-8">
-        <h1 class="text-2xl font-bold">
-          Welcome{{ userName() ? ', ' + userName() : '' }} 👋
+        <h1 class="text-2xl font-bold h-9 flex items-center">
+          @if (userName(); as name) {
+            Welcome, {{ name }} 👋
+          } @else {
+            <span class="inline-block h-6 w-48 bg-surface-border/60 rounded animate-pulse"></span>
+          }
         </h1>
         <p class="text-gray-400 mt-1">
           Here is your readiness for an international role today.
@@ -45,7 +49,16 @@ interface ScoreCard {
 })
 export class DashboardComponent implements OnInit {
   private readonly auth = inject(AuthService);
-  readonly userName = signal('');
+
+  /**
+   * Derived from AuthService's reactive `user` signal instead of a locally
+   * fetched, one-shot value. This removes the earlier race condition: right
+   * after login the signal is already populated (no flash of "Welcome 👋"
+   * without a name), and on a full page reload the template automatically
+   * re-renders once loadMe() resolves — no separate local state to fall out
+   * of sync with the service.
+   */
+  readonly userName = computed(() => this.auth.user()?.name?.split(' ')[0] ?? null);
 
   /** Placeholder DSFR Score until the Score AI module lands. */
   readonly scores: ScoreCard[] = [
@@ -56,9 +69,10 @@ export class DashboardComponent implements OnInit {
   ];
 
   ngOnInit(): void {
-    this.auth.loadMe().subscribe({
-      next: (u) => this.userName.set(u.name.split(' ')[0]),
-      error: () => void 0
-    });
+    // Skip the network round-trip if we already have the user (e.g. just
+    // logged in during this session); fetch it on a cold load (page reload).
+    if (!this.auth.user()) {
+      this.auth.loadMe().subscribe({ error: () => void 0 });
+    }
   }
 }
