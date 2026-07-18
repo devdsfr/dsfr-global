@@ -24,10 +24,13 @@ services:
         sync: false                  # paste your Neon pooled connection string here
       - key: ALLOWED_ORIGINS
         value: https://dsfr-global-web.onrender.com
+      # AI provider: set ONE of the two keys below (Anthropic takes precedence).
       - key: ANTHROPIC_API_KEY
-        sync: false                  # paste your Anthropic API key here (console.anthropic.com)
-      - key: ANTHROPIC_MODEL
-        value: claude-haiku-4-5-20251001
+        sync: false                  # console.anthropic.com (sk-ant-...)
+      - key: OPENAI_API_KEY
+        sync: false                  # platform.openai.com (sk-...)
+      - key: OPENAI_MODEL
+        value: gpt-4o-mini
 
   # ---- Frontend (Angular, static site) ----
   - type: web

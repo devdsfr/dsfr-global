@@ -15,6 +15,8 @@ type Config struct {
 	JWTSecret          string
 	AnthropicAPIKey    string
 	AnthropicModel     string
+	OpenAIAPIKey       string
+	OpenAIModel        string
 	AccessTokenTTL     time.Duration
 	RefreshTokenTTL    time.Duration
 	PasswordResetTTL   time.Duration
@@ -33,6 +35,8 @@ func Load() (*Config, error) {
 		JWTSecret:          getEnv("JWT_SECRET", ""),
 		AnthropicAPIKey:    getEnv("ANTHROPIC_API_KEY", ""),
 		AnthropicModel:     getEnv("ANTHROPIC_MODEL", "claude-haiku-4-5-20251001"),
+		OpenAIAPIKey:       getEnv("OPENAI_API_KEY", ""),
+		OpenAIModel:        getEnv("OPENAI_MODEL", "gpt-4o-mini"),
 		AccessTokenTTL:     15 * time.Minute,
 		RefreshTokenTTL:    7 * 24 * time.Hour,
 		PasswordResetTTL:   30 * time.Minute,

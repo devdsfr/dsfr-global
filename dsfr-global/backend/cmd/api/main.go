@@ -39,7 +39,7 @@ func main() {
 	users := postgres.NewUserRepository(pool)
 	store := postgres.NewTokenStore(pool)
 	careerRepo := postgres.NewCareerRepository(pool)
-	llm := ai.NewAnthropicClient(cfg.AnthropicAPIKey, cfg.AnthropicModel)
+	llm := ai.New(cfg.AnthropicAPIKey, cfg.AnthropicModel, cfg.OpenAIAPIKey, cfg.OpenAIModel)
 	hasher := security.NewBcryptHasher()
 	tokens := security.NewTokenManager(cfg.JWTSecret, cfg.AccessTokenTTL)
 
@@ -51,7 +51,7 @@ func main() {
 	practiceHandler := handlers.NewPracticeHandler(practiceService)
 
 	if !llm.Configured() {
-		slog.Warn("ANTHROPIC_API_KEY not set: interview generation will return 503")
+		slog.Warn("no AI key set (ANTHROPIC_API_KEY or OPENAI_API_KEY): interview generation will return 503")
 	}
 
 	r := router.New(cfg, tokens, authHandler, practiceHandler)
