@@ -71,6 +71,15 @@ CREATE TABLE IF NOT EXISTS interviews (
 );
 
 CREATE INDEX IF NOT EXISTS idx_interviews_user_created ON interviews (user_id, created_at DESC);
+
+-- Per-user AI provider configuration (BYOK). api_key_enc is AES-GCM encrypted.
+CREATE TABLE IF NOT EXISTS ai_settings (
+    user_id     UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    provider    VARCHAR(20) NOT NULL CHECK (provider IN ('openai','anthropic','gemini')),
+    api_key_enc TEXT NOT NULL,
+    model       VARCHAR(80) NOT NULL DEFAULT '',
+    updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
 `
 
 // Migrate applies the schema. Safe to run on every startup.

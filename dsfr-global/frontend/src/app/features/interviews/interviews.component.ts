@@ -46,6 +46,15 @@ type Stage = 'loading' | 'setup' | 'ready' | 'generating' | 'practicing' | 'fini
             <h1 class="text-2xl font-bold">DSFR Interview</h1>
             <p class="text-gray-400 mt-1">Your personalized mock interview. The interviewer speaks — the teleprompter shows what to answer.</p>
           </header>
+          @if (!aiReady()) {
+            <div class="card mb-4 border-l-4 border-l-amber-500">
+              <p class="text-sm text-gray-300">
+                ⚠️ No AI provider connected yet.
+                <a routerLink="/ai-settings" class="text-brand hover:text-brand-hover">Connect your API key</a>
+                (OpenAI, Anthropic or Gemini) to generate interviews.
+              </p>
+            </div>
+          }
           <div class="card space-y-4">
             @if (interview()) {
               <p class="text-sm text-gray-400">
@@ -145,6 +154,7 @@ export class InterviewsComponent implements OnInit, OnDestroy {
   readonly error = signal<string | null>(null);
   readonly hasResume = signal(false);
   readonly hasJob = signal(false);
+  readonly aiReady = signal(false);
 
   readonly turn = computed(() => this.interview()!.turns[this.current()]);
 
@@ -152,10 +162,12 @@ export class InterviewsComponent implements OnInit, OnDestroy {
     forkJoin({
       resume: this.practice.getResume().pipe(catchError(() => of(null))),
       job: this.practice.getJob().pipe(catchError(() => of(null))),
-      script: this.practice.latestInterview().pipe(catchError(() => of(null)))
-    }).subscribe(({ resume, job, script }) => {
+      script: this.practice.latestInterview().pipe(catchError(() => of(null))),
+      aiSettings: this.practice.getAISettings().pipe(catchError(() => of(null)))
+    }).subscribe(({ resume, job, script, aiSettings }) => {
       this.hasResume.set(!!resume);
       this.hasJob.set(!!job);
+      this.aiReady.set(!!aiSettings && (aiSettings.has_key || aiSettings.server_default));
       this.interview.set(script);
       this.stage.set(resume && job ? 'ready' : 'setup');
     });

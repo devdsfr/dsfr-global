@@ -20,4 +20,7 @@ type Repository interface {
 
 	SaveInterview(ctx context.Context, i *Interview) error
 	FindLatestInterviewByUser(ctx context.Context, userID uuid.UUID) (*Interview, error)
+
+	UpsertAISettings(ctx context.Context, s *AISettings) error
+	FindAISettingsByUser(ctx context.Context, userID uuid.UUID) (*AISettings, error)
 }

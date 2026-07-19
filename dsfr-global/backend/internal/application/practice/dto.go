@@ -29,3 +29,19 @@ type InterviewOutput struct {
 	Turns     []career.InterviewTurn `json:"turns"`
 	CreatedAt string                 `json:"created_at"`
 }
+
+// AISettingsInput registers the user's own AI provider key.
+type AISettingsInput struct {
+	Provider string `json:"provider" binding:"required,oneof=openai anthropic gemini"`
+	APIKey   string `json:"api_key" binding:"required,min=20"`
+	Model    string `json:"model" binding:"max=80"`
+}
+
+// AISettingsOutput never exposes the full key.
+type AISettingsOutput struct {
+	Provider      string `json:"provider"`
+	Model         string `json:"model"`
+	HasKey        bool   `json:"has_key"`
+	MaskedKey     string `json:"masked_key"`
+	ServerDefault bool   `json:"server_default"` // true if the server has its own fallback key
+}

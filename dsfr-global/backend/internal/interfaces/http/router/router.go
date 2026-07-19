@@ -46,6 +46,8 @@ func New(cfg *config.Config, tokens *security.TokenManager,
 			protected.PUT("/job", practiceHandler.PutJob)
 			protected.POST("/interview/generate", practiceHandler.GenerateInterview)
 			protected.GET("/interview/latest", practiceHandler.LatestInterview)
+			protected.GET("/ai-settings", practiceHandler.GetAISettings)
+			protected.PUT("/ai-settings", practiceHandler.PutAISettings)
 		}
 	}
 	return r

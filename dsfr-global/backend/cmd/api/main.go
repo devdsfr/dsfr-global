@@ -38,7 +38,11 @@ func main() {
 	// Dependency injection: wire infrastructure into application services.
 	users := postgres.NewUserRepository(pool)
 	store := postgres.NewTokenStore(pool)
-	careerRepo := postgres.NewCareerRepository(pool)
+	box, err := security.NewSecretBox(cfg.JWTSecret)
+	if err != nil {
+		fatal("secretbox", err)
+	}
+	careerRepo := postgres.NewCareerRepository(pool, box)
 	llm := ai.New(cfg.AnthropicAPIKey, cfg.AnthropicModel, cfg.OpenAIAPIKey, cfg.OpenAIModel)
 	hasher := security.NewBcryptHasher()
 	tokens := security.NewTokenManager(cfg.JWTSecret, cfg.AccessTokenTTL)

@@ -54,7 +54,8 @@ export class ShellComponent {
     { label: 'Interviews', path: '/interviews', icon: '🎤' },
     { label: 'My Journey', path: '/journey', icon: '🧭' },
     { label: 'GAP Analysis', path: '/gap', icon: '📈' },
-    { label: 'Coach', path: '/coach', icon: '🤖' }
+    { label: 'Coach', path: '/coach', icon: '🤖' },
+    { label: 'AI Settings', path: '/ai-settings', icon: '⚙️' }
   ];
 
   logout(): void {

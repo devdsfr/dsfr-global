@@ -11,13 +11,20 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/dsfr-global/backend/internal/domain/career"
+	"github.com/dsfr-global/backend/internal/infrastructure/security"
 )
 
 // CareerRepository is the PostgreSQL implementation of career.Repository.
-type CareerRepository struct{ pool *pgxpool.Pool }
+// API keys are encrypted with the SecretBox before hitting the database.
+type CareerRepository struct {
+	pool *pgxpool.Pool
+	box  *security.SecretBox
+}
 
 // NewCareerRepository wires the repository to a connection pool.
-func NewCareerRepository(pool *pgxpool.Pool) *CareerRepository { return &CareerRepository{pool: pool} }
+func NewCareerRepository(pool *pgxpool.Pool, box *security.SecretBox) *CareerRepository {
+	return &CareerRepository{pool: pool, box: box}
+}
 
 var _ career.Repository = (*CareerRepository)(nil)
 
@@ -105,4 +112,40 @@ func (r *CareerRepository) FindLatestInterviewByUser(ctx context.Context, userID
 		return nil, err
 	}
 	return &i, nil
+}
+
+func (r *CareerRepository) UpsertAISettings(ctx context.Context, s *career.AISettings) error {
+	enc, err := r.box.Encrypt(s.APIKey)
+	if err != nil {
+		return err
+	}
+	_, err = r.pool.Exec(ctx, `
+		INSERT INTO ai_settings (user_id, provider, api_key_enc, model)
+		VALUES ($1, $2, $3, $4)
+		ON CONFLICT (user_id) DO UPDATE
+		SET provider = EXCLUDED.provider, api_key_enc = EXCLUDED.api_key_enc,
+		    model = EXCLUDED.model, updated_at = now()`,
+		s.UserID, s.Provider, enc, s.Model)
+	return err
+}
+
+func (r *CareerRepository) FindAISettingsByUser(ctx context.Context, userID uuid.UUID) (*career.AISettings, error) {
+	var (
+		s   career.AISettings
+		enc string
+	)
+	err := r.pool.QueryRow(ctx, `
+		SELECT user_id, provider, api_key_enc, model, updated_at
+		FROM ai_settings WHERE user_id = $1`, userID).
+		Scan(&s.UserID, &s.Provider, &enc, &s.Model, &s.UpdatedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, career.ErrNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	if s.APIKey, err = r.box.Decrypt(enc); err != nil {
+		return nil, err
+	}
+	return &s, nil
 }

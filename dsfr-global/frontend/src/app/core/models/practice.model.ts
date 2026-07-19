@@ -23,3 +23,11 @@ export interface Interview {
   turns: InterviewTurn[];
   created_at: string;
 }
+
+export interface AISettings {
+  provider: string;
+  model: string;
+  has_key: boolean;
+  masked_key: string;
+  server_default: boolean;
+}

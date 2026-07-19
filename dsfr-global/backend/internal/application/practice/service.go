@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/dsfr-global/backend/internal/domain/career"
+	"github.com/dsfr-global/backend/internal/infrastructure/ai"
 )
 
 // Completer is the LLM port. Infrastructure provides an Anthropic-backed one.
@@ -68,6 +69,31 @@ func (s *Service) LatestInterview(ctx context.Context, userID uuid.UUID) (*caree
 	return s.repo.FindLatestInterviewByUser(ctx, userID)
 }
 
+// SaveAISettings stores the user's own provider + API key (BYOK).
+func (s *Service) SaveAISettings(ctx context.Context, userID uuid.UUID, in AISettingsInput) (*career.AISettings, error) {
+	set := &career.AISettings{UserID: userID, Provider: in.Provider,
+		APIKey: strings.TrimSpace(in.APIKey), Model: strings.TrimSpace(in.Model)}
+	if err := s.repo.UpsertAISettings(ctx, set); err != nil {
+		return nil, err
+	}
+	return s.repo.FindAISettingsByUser(ctx, userID)
+}
+
+// GetAISettings fetches the user's provider config (key included; handler masks it).
+func (s *Service) GetAISettings(ctx context.Context, userID uuid.UUID) (*career.AISettings, error) {
+	return s.repo.FindAISettingsByUser(ctx, userID)
+}
+
+// completerFor resolves the LLM to use: the user's own key first, then the
+// server-wide default. This is what lets each user bring their own key.
+func (s *Service) completerFor(ctx context.Context, userID uuid.UUID) (Completer, error) {
+	set, err := s.repo.FindAISettingsByUser(ctx, userID)
+	if err == nil && set.APIKey != "" {
+		return ai.ForProvider(set.Provider, set.APIKey, set.Model)
+	}
+	return s.llm, nil
+}
+
 // GenerateInterview builds a personalized interview script from the stored
 // résumé + target job via the LLM, saves it, and returns it.
 func (s *Service) GenerateInterview(ctx context.Context, userID uuid.UUID, in GenerateInput) (*career.Interview, error) {
@@ -84,8 +110,13 @@ func (s *Service) GenerateInterview(ctx context.Context, userID uuid.UUID, in Ge
 		return nil, fmt.Errorf("job: %w", err)
 	}
 
+	llm, err := s.completerFor(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+
 	prompt := buildPrompt(resume, job, level)
-	text, err := s.llm.Complete(ctx, prompt, 4000)
+	text, err := llm.Complete(ctx, prompt, 4000)
 	if err != nil {
 		return nil, err
 	}

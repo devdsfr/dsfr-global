@@ -45,3 +45,13 @@ type Interview struct {
 	Turns     []InterviewTurn
 	CreatedAt time.Time
 }
+
+// AISettings holds the user's own LLM provider configuration (BYOK —
+// bring your own key). The key is encrypted at rest.
+type AISettings struct {
+	UserID    uuid.UUID
+	Provider  string // openai | anthropic | gemini
+	APIKey    string // plaintext in memory only; encrypted in storage
+	Model     string // optional override; empty = provider default
+	UpdatedAt time.Time
+}

@@ -144,3 +144,50 @@ func respondCareerError(c *gin.Context, err error) {
 		c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
 	}
 }
+
+// GetAISettings godoc: GET /api/v1/ai-settings
+func (h *PracticeHandler) GetAISettings(c *gin.Context) {
+	userID, ok := currentUserID(c)
+	if !ok {
+		return
+	}
+	serverDefault := h.svc.AIConfigured()
+	set, err := h.svc.GetAISettings(c.Request.Context(), userID)
+	if errors.Is(err, career.ErrNotFound) {
+		c.JSON(http.StatusOK, gin.H{"provider": "", "model": "", "has_key": false,
+			"masked_key": "", "server_default": serverDefault})
+		return
+	}
+	if err != nil {
+		respondCareerError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"provider": set.Provider, "model": set.Model, "has_key": true,
+		"masked_key": maskKey(set.APIKey), "server_default": serverDefault})
+}
+
+// PutAISettings godoc: PUT /api/v1/ai-settings
+func (h *PracticeHandler) PutAISettings(c *gin.Context) {
+	userID, ok := currentUserID(c)
+	if !ok {
+		return
+	}
+	var in practice.AISettingsInput
+	if !bind(c, &in) {
+		return
+	}
+	set, err := h.svc.SaveAISettings(c.Request.Context(), userID, in)
+	if err != nil {
+		respondCareerError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"provider": set.Provider, "model": set.Model, "has_key": true,
+		"masked_key": maskKey(set.APIKey), "server_default": h.svc.AIConfigured()})
+}
+
+func maskKey(key string) string {
+	if len(key) <= 4 {
+		return "••••"
+	}
+	return "••••••••" + key[len(key)-4:]
+}
