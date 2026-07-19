@@ -3,6 +3,7 @@ package ai
 import (
 	"context"
 	"fmt"
+	"regexp"
 )
 
 // Completer mirrors the application-layer LLM port.
@@ -15,14 +16,27 @@ type Completer interface {
 var DefaultModels = map[string]string{
 	"openai":    "gpt-4o-mini",
 	"anthropic": "claude-haiku-4-5-20251001",
-	"gemini":    "gemini-2.0-flash",
+	"gemini":    "gemini-flash-latest",
+}
+
+// Model names always start with a letter (gpt-4o-mini, claude-…, gemini-…).
+// Anything else — most often a project number or account ID pasted by mistake —
+// is rejected so we fall back to the provider default instead of failing the
+// call with a confusing "model not found" from the provider.
+var validModel = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9._-]{1,79}$`)
+
+// SanitizeModel returns the model if it looks like a real model name,
+// otherwise the provider's default.
+func SanitizeModel(provider, model string) string {
+	if validModel.MatchString(model) {
+		return model
+	}
+	return DefaultModels[provider]
 }
 
 // ForProvider builds a client for a user-registered provider + key.
 func ForProvider(provider, apiKey, model string) (Completer, error) {
-	if model == "" {
-		model = DefaultModels[provider]
-	}
+	model = SanitizeModel(provider, model)
 	switch provider {
 	case "openai":
 		return NewOpenAIClient(apiKey, model), nil

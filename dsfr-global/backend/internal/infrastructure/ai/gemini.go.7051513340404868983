@@ -47,7 +47,7 @@ type geminiPart struct {
 }
 
 type geminiGenConfig struct {
-	MaxOutputTokens int                   `json:"maxOutputTokens"`
+	MaxOutputTokens int                  `json:"maxOutputTokens"`
 	ThinkingConfig  *geminiThinkingConfig `json:"thinkingConfig,omitempty"`
 }
 
@@ -77,7 +77,7 @@ func (c *GeminiClient) Complete(ctx context.Context, prompt string, maxTokens in
 		return "", ErrNotConfigured
 	}
 	body, err := json.Marshal(geminiRequest{
-		Contents: []geminiContent{{Parts: []geminiPart{{Text: prompt}}}},
+		Contents:         []geminiContent{{Parts: []geminiPart{{Text: prompt}}}},
 		GenerationConfig: geminiGenConfig{
 			MaxOutputTokens: maxTokens,
 			ThinkingConfig:  &geminiThinkingConfig{ThinkingBudget: 0},
