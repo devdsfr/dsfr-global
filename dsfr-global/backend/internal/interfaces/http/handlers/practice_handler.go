@@ -289,3 +289,46 @@ func maskKey(key string) string {
 	}
 	return "••••••••" + key[len(key)-4:]
 }
+
+// GeneratePrepPack godoc: POST /api/v1/prep/generate
+func (h *PracticeHandler) GeneratePrepPack(c *gin.Context) {
+	userID, ok := currentUserID(c)
+	if !ok {
+		return
+	}
+	var in practice.PrepInput
+	if !bind(c, &in) {
+		return
+	}
+	pack, err := h.svc.GeneratePrepPack(c.Request.Context(), userID, in)
+	if err != nil {
+		slog.Error("prep pack generation failed", "user", userID, "error", err)
+		respondCareerError(c, err)
+		return
+	}
+	c.JSON(http.StatusCreated, prepJSON(pack))
+}
+
+// LatestPrepPack godoc: GET /api/v1/prep/:jobId
+func (h *PracticeHandler) LatestPrepPack(c *gin.Context) {
+	userID, ok := currentUserID(c)
+	if !ok {
+		return
+	}
+	jobID, err := uuid.Parse(c.Param("jobId"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid job id"})
+		return
+	}
+	pack, err := h.svc.LatestPrepPack(c.Request.Context(), userID, jobID)
+	if err != nil {
+		respondCareerError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, prepJSON(pack))
+}
+
+func prepJSON(p *career.PrepPack) gin.H {
+	return gin.H{"id": p.ID.String(), "job_id": p.JobID.String(),
+		"content": p.Content, "created_at": p.CreatedAt}
+}

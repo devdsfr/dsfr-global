@@ -44,6 +44,11 @@ export const routes: Routes = [
           import('./features/ai-settings/ai-settings.component').then((m) => m.AiSettingsComponent)
       },
       {
+        path: 'prep',
+        loadComponent: () =>
+          import('./features/prep/prep.component').then((m) => m.PrepComponent)
+      },
+      {
         path: 'interviews',
         loadComponent: () =>
           import('./features/interviews/interviews.component').then((m) => m.InterviewsComponent)

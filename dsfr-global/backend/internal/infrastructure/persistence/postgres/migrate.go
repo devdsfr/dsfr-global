@@ -100,6 +100,17 @@ CREATE TABLE IF NOT EXISTS answer_evaluations (
 
 CREATE INDEX IF NOT EXISTS idx_evals_user_created ON answer_evaluations (user_id, created_at DESC);
 
+-- Interview Prep Pack: an AI-generated study dossier for a specific job.
+CREATE TABLE IF NOT EXISTS prep_packs (
+    id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id    UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    job_id     UUID NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
+    content    JSONB NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_preppacks_user_job ON prep_packs (user_id, job_id, created_at DESC);
+
 -- Per-user AI provider configuration (BYOK). api_key_enc is AES-GCM encrypted.
 CREATE TABLE IF NOT EXISTS ai_settings (
     user_id     UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,

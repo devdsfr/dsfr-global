@@ -275,3 +275,36 @@ func (r *CareerRepository) ComputeScores(ctx context.Context, userID uuid.UUID) 
 	s.OverallReadiness = (s.Interview*2 + s.Speaking + s.TechnicalCommunication + round(avgGrammar)) / 5
 	return &s, nil
 }
+
+func (r *CareerRepository) SavePrepPack(ctx context.Context, p *career.PrepPack) error {
+	content, err := json.Marshal(p.Content)
+	if err != nil {
+		return err
+	}
+	_, err = r.pool.Exec(ctx, `
+		INSERT INTO prep_packs (id, user_id, job_id, content) VALUES ($1, $2, $3, $4)`,
+		p.ID, p.UserID, p.JobID, content)
+	return err
+}
+
+func (r *CareerRepository) FindLatestPrepPack(ctx context.Context, userID, jobID uuid.UUID) (*career.PrepPack, error) {
+	var (
+		p          career.PrepPack
+		contentRaw []byte
+	)
+	err := r.pool.QueryRow(ctx, `
+		SELECT id, user_id, job_id, content, created_at
+		FROM prep_packs WHERE user_id=$1 AND job_id=$2
+		ORDER BY created_at DESC LIMIT 1`, userID, jobID).
+		Scan(&p.ID, &p.UserID, &p.JobID, &contentRaw, &p.CreatedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, career.ErrNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	if err := json.Unmarshal(contentRaw, &p.Content); err != nil {
+		return nil, err
+	}
+	return &p, nil
+}

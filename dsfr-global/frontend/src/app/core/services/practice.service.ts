@@ -3,7 +3,7 @@ import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 
 import { environment } from '../../../environments/environment';
-import { AISettings, Evaluation, Interview, Job, JobInput, Resume, Scores } from '../models/practice.model';
+import { AISettings, Evaluation, Interview, Job, JobInput, PrepPack, Resume, Scores } from '../models/practice.model';
 
 /** Résumé, target job and AI interview scripts. */
 @Injectable({ providedIn: 'root' })
@@ -45,6 +45,14 @@ export class PracticeService {
 
   evaluateAnswer(payload: { interview_id: string; turn_index: number; transcript: string }): Observable<Evaluation> {
     return this.http.post<Evaluation>(`${this.api}/interview/evaluate`, payload);
+  }
+
+  getPrepPack(jobId: string): Observable<PrepPack> {
+    return this.http.get<PrepPack>(`${this.api}/prep/${jobId}`);
+  }
+
+  generatePrepPack(jobId: string): Observable<PrepPack> {
+    return this.http.post<PrepPack>(`${this.api}/prep/generate`, { job_id: jobId });
   }
 
   latestInterview(): Observable<Interview> {

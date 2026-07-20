@@ -51,6 +51,8 @@ func New(cfg *config.Config, tokens *security.TokenManager,
 			protected.POST("/interview/generate", practiceHandler.GenerateInterview)
 			protected.GET("/interview/latest", practiceHandler.LatestInterview)
 			protected.POST("/interview/evaluate", practiceHandler.EvaluateAnswer)
+			protected.POST("/prep/generate", practiceHandler.GeneratePrepPack)
+			protected.GET("/prep/:jobId", practiceHandler.LatestPrepPack)
 			protected.GET("/ai-settings", practiceHandler.GetAISettings)
 			protected.PUT("/ai-settings", practiceHandler.PutAISettings)
 		}

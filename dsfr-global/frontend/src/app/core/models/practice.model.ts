@@ -54,3 +54,28 @@ export interface Scores {
   technical_communication: number;
   answers_practiced: number;
 }
+
+export interface PrepQuestion {
+  question: string;
+  why: string;
+  model_answer: string;
+}
+
+export interface WeakPoint {
+  gap: string;
+  how_to_address: string;
+}
+
+export interface PrepContent {
+  opening_pitch: string;
+  likely_questions: PrepQuestion[];
+  questions_to_ask: string[];
+  weak_points: WeakPoint[];
+}
+
+export interface PrepPack {
+  id: string;
+  job_id: string;
+  content: PrepContent;
+  created_at: string;
+}

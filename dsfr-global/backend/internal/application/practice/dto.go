@@ -64,3 +64,8 @@ type AISettingsOutput struct {
 	MaskedKey     string `json:"masked_key"`
 	ServerDefault bool   `json:"server_default"` // true if the server has its own fallback key
 }
+
+// PrepInput requests a prep pack for a specific job.
+type PrepInput struct {
+	JobID string `json:"job_id" binding:"required,uuid"`
+}

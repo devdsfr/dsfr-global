@@ -101,7 +101,7 @@ type WeakPoint struct {
 
 // PrepContent is the full study dossier for one job.
 type PrepContent struct {
-	OpeningPitch    string         `json:"opening_pitch"` // a 30-second "tell me about yourself"
+	OpeningPitch    string         `json:"opening_pitch"`    // a 30-second "tell me about yourself"
 	LikelyQuestions []PrepQuestion `json:"likely_questions"`
 	QuestionsToAsk  []string       `json:"questions_to_ask"` // smart questions for the candidate to ask
 	WeakPoints      []WeakPoint    `json:"weak_points"`

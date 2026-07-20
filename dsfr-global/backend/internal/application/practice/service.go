@@ -323,3 +323,94 @@ func parseEvaluation(text string) (*EvaluationOutput, error) {
 	}
 	return &out, nil
 }
+
+// GeneratePrepPack builds a personalized study dossier for one job: likely
+// questions with model answers grounded in the résumé, smart questions to ask,
+// and the profile's weak points versus the job with how to address them.
+func (s *Service) GeneratePrepPack(ctx context.Context, userID uuid.UUID, in PrepInput) (*career.PrepPack, error) {
+	jobID, err := uuid.Parse(in.JobID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid job id")
+	}
+	resume, err := s.repo.FindResumeByUser(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("resume: %w", err)
+	}
+	job, err := s.repo.FindJobByID(ctx, userID, jobID)
+	if err != nil {
+		return nil, fmt.Errorf("job: %w", err)
+	}
+
+	llm, err := s.completerFor(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	prompt := buildPrepPrompt(resume, job)
+	text, err := llm.Complete(ctx, prompt, 6000)
+	if err != nil {
+		return nil, err
+	}
+	content, err := parsePrepContent(text)
+	if err != nil {
+		return nil, err
+	}
+
+	pack := &career.PrepPack{ID: uuid.New(), UserID: userID, JobID: jobID,
+		Content: *content, CreatedAt: time.Now().UTC()}
+	if err := s.repo.SavePrepPack(ctx, pack); err != nil {
+		return nil, err
+	}
+	return pack, nil
+}
+
+// LatestPrepPack fetches the most recent dossier for a job.
+func (s *Service) LatestPrepPack(ctx context.Context, userID, jobID uuid.UUID) (*career.PrepPack, error) {
+	return s.repo.FindLatestPrepPack(ctx, userID, jobID)
+}
+
+func buildPrepPrompt(resume *career.Resume, job *career.Job) string {
+	return fmt.Sprintf(`You are an expert interview coach preparing a tech professional for a REAL upcoming interview. The candidate will study this to answer confidently in their own words — everything must be grounded in their actual résumé, never invented.
+
+TARGET JOB:
+Title: %s
+Company: %s
+Seniority: %s
+Stack: %s
+Posting:
+%s
+
+CANDIDATE RESUME:
+%s
+
+Produce a study dossier:
+1. "opening_pitch": a strong ~30-second answer to "Tell me about yourself", tailored to this job, in the first person, using only real résumé facts. Natural spoken English.
+2. "likely_questions": the 10 most likely interview questions for THIS job and seniority (mix of behavioral and technical on the job's stack). For each: "question", "why" (one short line on why it's likely), and "model_answer" (a strong first-person answer built from the résumé; for technical questions the answer should be technically correct and specific).
+3. "questions_to_ask": 5 smart, specific questions the candidate should ask the interviewer about this role/company.
+4. "weak_points": 3 honest gaps between this résumé and this job, each with "gap" and "how_to_address" (how to honestly handle it if asked — no lying, turn it into a growth story or transferable skill).
+
+Answers should be professional but natural to speak. Respond with ONLY this JSON, no markdown, no commentary:
+{"opening_pitch":"...","likely_questions":[{"question":"...","why":"...","model_answer":"..."}],"questions_to_ask":["..."],"weak_points":[{"gap":"...","how_to_address":"..."}]}`,
+		job.Title, job.Company, job.Seniority, job.Stack, truncate(job.RawText, 3000),
+		truncate(resume.RawText, 4000))
+}
+
+func parsePrepContent(text string) (*career.PrepContent, error) {
+	text = strings.TrimSpace(text)
+	text = strings.TrimPrefix(text, "```json")
+	text = strings.TrimPrefix(text, "```")
+	text = strings.TrimSuffix(text, "```")
+	if i := strings.Index(text, "{"); i > 0 {
+		text = text[i:]
+	}
+	if i := strings.LastIndex(text, "}"); i >= 0 {
+		text = text[:i+1]
+	}
+	var content career.PrepContent
+	if err := json.Unmarshal([]byte(text), &content); err != nil {
+		return nil, fmt.Errorf("AI returned an unexpected format, try again: %w", err)
+	}
+	if len(content.LikelyQuestions) == 0 {
+		return nil, fmt.Errorf("AI returned an empty prep pack, try again")
+	}
+	return &content, nil
+}

@@ -31,4 +31,7 @@ type Repository interface {
 
 	SaveEvaluation(ctx context.Context, e *AnswerEvaluation) error
 	ComputeScores(ctx context.Context, userID uuid.UUID) (*Scores, error)
+
+	SavePrepPack(ctx context.Context, p *PrepPack) error
+	FindLatestPrepPack(ctx context.Context, userID, jobID uuid.UUID) (*PrepPack, error)
 }
