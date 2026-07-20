@@ -9,17 +9,36 @@ type ResumeInput struct {
 	RawText  string `json:"raw_text" binding:"required,min=50"`
 }
 
-// JobInput creates/updates the user's target job.
+// JobInput creates/updates one of the user's target jobs.
 type JobInput struct {
 	Title     string `json:"title" binding:"required,max=160"`
+	Company   string `json:"company" binding:"max=160"`
 	Seniority string `json:"seniority" binding:"max=80"`
 	Stack     string `json:"stack" binding:"max=255"`
 	RawText   string `json:"raw_text" binding:"required,min=30"`
 }
 
-// GenerateInput requests a new interview script.
+// GenerateInput requests a new interview script, optionally for a specific job.
 type GenerateInput struct {
 	Level string `json:"level" binding:"omitempty,oneof=beginner intermediate advanced"`
+	JobID string `json:"job_id" binding:"omitempty,uuid"`
+}
+
+// EvaluateInput submits what the user actually said for one answer.
+type EvaluateInput struct {
+	InterviewID string `json:"interview_id" binding:"required,uuid"`
+	TurnIndex   int    `json:"turn_index"`
+	Transcript  string `json:"transcript" binding:"required,min=1"`
+}
+
+// EvaluationOutput is the AI feedback for one spoken answer.
+type EvaluationOutput struct {
+	Score      int      `json:"score"`
+	Fluency    int      `json:"fluency"`
+	Grammar    int      `json:"grammar"`
+	Vocabulary int      `json:"vocabulary"`
+	Tips       []string `json:"tips"`
+	Improved   string   `json:"improved"`
 }
 
 // InterviewOutput is the script returned to the frontend.

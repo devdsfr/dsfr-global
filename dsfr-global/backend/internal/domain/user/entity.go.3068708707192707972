@@ -21,18 +21,18 @@ const (
 
 // User is the aggregate root for authentication and profile identity.
 type User struct {
-	ID            uuid.UUID
-	Name          string
-	Email         string
-	PasswordHash  string
-	Country       string
-	Language      string
-	Role          string
-	TargetRole    string
+	ID           uuid.UUID
+	Name         string
+	Email        string
+	PasswordHash string
+	Country      string
+	Language     string
+	Role         string
+	TargetRole   string
 	TargetCountry string
-	EnglishLevel  EnglishLevel
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
+	EnglishLevel EnglishLevel
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
 }
 
 // NewUser creates a User with a fresh identity. Password must arrive already hashed.

@@ -42,10 +42,15 @@ func New(cfg *config.Config, tokens *security.TokenManager,
 
 			protected.GET("/resume", practiceHandler.GetResume)
 			protected.PUT("/resume", practiceHandler.PutResume)
-			protected.GET("/job", practiceHandler.GetJob)
-			protected.PUT("/job", practiceHandler.PutJob)
+			protected.GET("/jobs", practiceHandler.ListJobs)
+			protected.POST("/jobs", practiceHandler.CreateJob)
+			protected.PUT("/jobs/:id", practiceHandler.UpdateJob)
+			protected.DELETE("/jobs/:id", practiceHandler.DeleteJob)
+			protected.POST("/jobs/:id/activate", practiceHandler.ActivateJob)
+			protected.GET("/scores", practiceHandler.Scores)
 			protected.POST("/interview/generate", practiceHandler.GenerateInterview)
 			protected.GET("/interview/latest", practiceHandler.LatestInterview)
+			protected.POST("/interview/evaluate", practiceHandler.EvaluateAnswer)
 			protected.GET("/ai-settings", practiceHandler.GetAISettings)
 			protected.PUT("/ai-settings", practiceHandler.PutAISettings)
 		}

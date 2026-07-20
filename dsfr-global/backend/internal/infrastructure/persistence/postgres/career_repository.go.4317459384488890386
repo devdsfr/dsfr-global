@@ -243,9 +243,9 @@ func (r *CareerRepository) SaveEvaluation(ctx context.Context, e *career.AnswerE
 // dashboard's DSFR Score. Returns zeros when nothing has been practiced yet.
 func (r *CareerRepository) ComputeScores(ctx context.Context, userID uuid.UUID) (*career.Scores, error) {
 	var (
-		s                                          career.Scores
+		s                                    career.Scores
 		avgScore, avgFluency, avgGrammar, avgVocab *float64
-		total                                      int
+		total                                int
 	)
 	err := r.pool.QueryRow(ctx, `
 		SELECT AVG(score), AVG(fluency), AVG(grammar), AVG(vocabulary), COUNT(*)

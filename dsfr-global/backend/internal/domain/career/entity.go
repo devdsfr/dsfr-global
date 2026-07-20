@@ -18,14 +18,17 @@ type Resume struct {
 	UpdatedAt time.Time
 }
 
-// Job is the user's current target job posting.
+// Job is one of the user's target job openings. A user tracks several at once
+// and marks one active, which is the default target for practice sessions.
 type Job struct {
 	ID        uuid.UUID
 	UserID    uuid.UUID
 	Title     string // e.g. "Java Developer"
+	Company   string
 	Seniority string // e.g. "Mid-level"
 	Stack     string // e.g. "Java, Spring Boot, AWS"
 	RawText   string // full posting text
+	IsActive  bool
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }
@@ -41,6 +44,7 @@ type InterviewTurn struct {
 type Interview struct {
 	ID        uuid.UUID
 	UserID    uuid.UUID
+	JobID     uuid.UUID
 	Level     string // beginner | intermediate | advanced
 	Turns     []InterviewTurn
 	CreatedAt time.Time
@@ -54,4 +58,29 @@ type AISettings struct {
 	APIKey    string // plaintext in memory only; encrypted in storage
 	Model     string // optional override; empty = provider default
 	UpdatedAt time.Time
+}
+
+// AnswerEvaluation is the AI's assessment of one spoken answer.
+type AnswerEvaluation struct {
+	ID          uuid.UUID
+	UserID      uuid.UUID
+	InterviewID uuid.UUID
+	TurnIndex   int
+	Transcript  string
+	Score       int      // 0-100 overall for this answer
+	Fluency     int      // 0-100
+	Grammar     int      // 0-100
+	Vocabulary  int      // 0-100
+	Tips        []string // actionable improvements
+	Improved    string   // a better way to say it
+	CreatedAt   time.Time
+}
+
+// Scores is the aggregated DSFR Score shown on the dashboard.
+type Scores struct {
+	OverallReadiness       int `json:"overall_readiness"`
+	Interview              int `json:"interview"`
+	Speaking               int `json:"speaking"`
+	TechnicalCommunication int `json:"technical_communication"`
+	AnswersPracticed       int `json:"answers_practiced"`
 }

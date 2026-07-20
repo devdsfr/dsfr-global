@@ -72,6 +72,34 @@ CREATE TABLE IF NOT EXISTS interviews (
 
 CREATE INDEX IF NOT EXISTS idx_interviews_user_created ON interviews (user_id, created_at DESC);
 
+-- Jobs started as one-per-user; users now track several openings at once,
+-- so the UNIQUE(user_id) constraint is dropped and one job is flagged active.
+ALTER TABLE jobs DROP CONSTRAINT IF EXISTS jobs_user_id_key;
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS company VARCHAR(160) NOT NULL DEFAULT '';
+CREATE INDEX IF NOT EXISTS idx_jobs_user ON jobs (user_id, created_at DESC);
+
+-- Interviews are generated for a specific job.
+ALTER TABLE interviews ADD COLUMN IF NOT EXISTS job_id UUID REFERENCES jobs(id) ON DELETE SET NULL;
+
+-- AI evaluation of each spoken answer (from the browser's speech transcript).
+CREATE TABLE IF NOT EXISTS answer_evaluations (
+    id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id      UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    interview_id UUID REFERENCES interviews(id) ON DELETE CASCADE,
+    turn_index   INT NOT NULL,
+    transcript   TEXT NOT NULL,
+    score        INT NOT NULL,
+    fluency      INT NOT NULL DEFAULT 0,
+    grammar      INT NOT NULL DEFAULT 0,
+    vocabulary   INT NOT NULL DEFAULT 0,
+    tips         JSONB NOT NULL DEFAULT '[]'::jsonb,
+    improved     TEXT NOT NULL DEFAULT '',
+    created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_evals_user_created ON answer_evaluations (user_id, created_at DESC);
+
 -- Per-user AI provider configuration (BYOK). api_key_enc is AES-GCM encrypted.
 CREATE TABLE IF NOT EXISTS ai_settings (
     user_id     UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,

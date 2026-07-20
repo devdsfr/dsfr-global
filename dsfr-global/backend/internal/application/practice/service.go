@@ -48,20 +48,47 @@ func (s *Service) GetResume(ctx context.Context, userID uuid.UUID) (*career.Resu
 	return s.repo.FindResumeByUser(ctx, userID)
 }
 
-// SaveJob upserts the user's target job.
-func (s *Service) SaveJob(ctx context.Context, userID uuid.UUID, in JobInput) (*career.Job, error) {
-	j := &career.Job{ID: uuid.New(), UserID: userID,
-		Title: strings.TrimSpace(in.Title), Seniority: strings.TrimSpace(in.Seniority),
-		Stack: strings.TrimSpace(in.Stack), RawText: strings.TrimSpace(in.RawText)}
-	if err := s.repo.UpsertJob(ctx, j); err != nil {
+// CreateJob adds a new target job. The first job becomes the active one.
+func (s *Service) CreateJob(ctx context.Context, userID uuid.UUID, in JobInput) (*career.Job, error) {
+	existing, err := s.repo.ListJobsByUser(ctx, userID)
+	if err != nil {
 		return nil, err
 	}
-	return s.repo.FindJobByUser(ctx, userID)
+	j := &career.Job{ID: uuid.New(), UserID: userID,
+		Title: strings.TrimSpace(in.Title), Company: strings.TrimSpace(in.Company),
+		Seniority: strings.TrimSpace(in.Seniority), Stack: strings.TrimSpace(in.Stack),
+		RawText: strings.TrimSpace(in.RawText), IsActive: len(existing) == 0}
+	if err := s.repo.CreateJob(ctx, j); err != nil {
+		return nil, err
+	}
+	return s.repo.FindJobByID(ctx, userID, j.ID)
 }
 
-// GetJob fetches the user's target job.
-func (s *Service) GetJob(ctx context.Context, userID uuid.UUID) (*career.Job, error) {
-	return s.repo.FindJobByUser(ctx, userID)
+// UpdateJob edits an existing job.
+func (s *Service) UpdateJob(ctx context.Context, userID, jobID uuid.UUID, in JobInput) (*career.Job, error) {
+	j := &career.Job{ID: jobID, UserID: userID,
+		Title: strings.TrimSpace(in.Title), Company: strings.TrimSpace(in.Company),
+		Seniority: strings.TrimSpace(in.Seniority), Stack: strings.TrimSpace(in.Stack),
+		RawText: strings.TrimSpace(in.RawText)}
+	if err := s.repo.UpdateJob(ctx, j); err != nil {
+		return nil, err
+	}
+	return s.repo.FindJobByID(ctx, userID, jobID)
+}
+
+// DeleteJob removes a job.
+func (s *Service) DeleteJob(ctx context.Context, userID, jobID uuid.UUID) error {
+	return s.repo.DeleteJob(ctx, userID, jobID)
+}
+
+// ListJobs returns all target jobs (active first).
+func (s *Service) ListJobs(ctx context.Context, userID uuid.UUID) ([]career.Job, error) {
+	return s.repo.ListJobsByUser(ctx, userID)
+}
+
+// SetActiveJob marks which job practice sessions target by default.
+func (s *Service) SetActiveJob(ctx context.Context, userID, jobID uuid.UUID) error {
+	return s.repo.SetActiveJob(ctx, userID, jobID)
 }
 
 // LatestInterview returns the most recent generated script.
@@ -105,7 +132,16 @@ func (s *Service) GenerateInterview(ctx context.Context, userID uuid.UUID, in Ge
 	if err != nil {
 		return nil, fmt.Errorf("resume: %w", err)
 	}
-	job, err := s.repo.FindJobByUser(ctx, userID)
+	var job *career.Job
+	if in.JobID != "" {
+		jobID, parseErr := uuid.Parse(in.JobID)
+		if parseErr != nil {
+			return nil, fmt.Errorf("invalid job id")
+		}
+		job, err = s.repo.FindJobByID(ctx, userID, jobID)
+	} else {
+		job, err = s.repo.FindActiveJob(ctx, userID)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("job: %w", err)
 	}
@@ -126,7 +162,7 @@ func (s *Service) GenerateInterview(ctx context.Context, userID uuid.UUID, in Ge
 	}
 
 	interview := &career.Interview{ID: uuid.New(), UserID: userID, Level: level,
-		Turns: turns, CreatedAt: time.Now().UTC()}
+		JobID: job.ID, Turns: turns, CreatedAt: time.Now().UTC()}
 	if err := s.repo.SaveInterview(ctx, interview); err != nil {
 		return nil, err
 	}
@@ -195,4 +231,95 @@ func truncate(s string, max int) string {
 		return s
 	}
 	return s[:max]
+}
+
+// EvaluateAnswer sends the user's spoken transcript to the LLM, which grades it
+// against the expected answer and returns actionable coaching tips.
+func (s *Service) EvaluateAnswer(ctx context.Context, userID uuid.UUID, in EvaluateInput) (*EvaluationOutput, error) {
+	interviewID, err := uuid.Parse(in.InterviewID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid interview id")
+	}
+	interview, err := s.repo.FindLatestInterviewByUser(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	if in.TurnIndex < 0 || in.TurnIndex >= len(interview.Turns) {
+		return nil, fmt.Errorf("invalid turn index")
+	}
+	turn := interview.Turns[in.TurnIndex]
+
+	llm, err := s.completerFor(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	prompt := buildEvaluationPrompt(turn.Interviewer, turn.Answer, in.Transcript)
+	text, err := llm.Complete(ctx, prompt, 1200)
+	if err != nil {
+		return nil, err
+	}
+	out, err := parseEvaluation(text)
+	if err != nil {
+		return nil, err
+	}
+
+	eval := &career.AnswerEvaluation{ID: uuid.New(), UserID: userID, InterviewID: interviewID,
+		TurnIndex: in.TurnIndex, Transcript: in.Transcript, Score: out.Score,
+		Fluency: out.Fluency, Grammar: out.Grammar, Vocabulary: out.Vocabulary,
+		Tips: out.Tips, Improved: out.Improved, CreatedAt: time.Now().UTC()}
+	if err := s.repo.SaveEvaluation(ctx, eval); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// Scores returns the aggregated DSFR Score for the dashboard.
+func (s *Service) Scores(ctx context.Context, userID uuid.UUID) (*career.Scores, error) {
+	return s.repo.ComputeScores(ctx, userID)
+}
+
+func buildEvaluationPrompt(question, expected, transcript string) string {
+	return fmt.Sprintf(`You are an English-for-work coach evaluating a spoken interview answer.
+
+INTERVIEWER QUESTION:
+%s
+
+MODEL ANSWER (what the candidate was practicing):
+%s
+
+WHAT THE CANDIDATE ACTUALLY SAID (speech-to-text transcript, so punctuation may be missing):
+%s
+
+Grade the candidate's spoken answer from 0 to 100 on each dimension. Judge the
+transcript for content, grammar and word choice; ignore missing punctuation and
+minor transcription noise. Be encouraging but honest.
+
+Give 2-3 short, specific, actionable tips (each under 20 words) — point at real
+mistakes in what they said, not generic advice.
+
+"improved" must be a better version of THEIR answer: keep their own ideas and
+facts, but fix grammar and make it sound natural and professional. Keep it
+speakable and roughly the same length.
+
+Respond with ONLY this JSON, no markdown, no commentary:
+{"score":0,"fluency":0,"grammar":0,"vocabulary":0,"tips":["..."],"improved":"..."}`,
+		question, expected, transcript)
+}
+
+func parseEvaluation(text string) (*EvaluationOutput, error) {
+	text = strings.TrimSpace(text)
+	text = strings.TrimPrefix(text, "```json")
+	text = strings.TrimPrefix(text, "```")
+	text = strings.TrimSuffix(text, "```")
+	if i := strings.Index(text, "{"); i > 0 {
+		text = text[i:]
+	}
+	if i := strings.LastIndex(text, "}"); i >= 0 {
+		text = text[:i+1]
+	}
+	var out EvaluationOutput
+	if err := json.Unmarshal([]byte(text), &out); err != nil {
+		return nil, fmt.Errorf("AI returned an unexpected format, try again: %w", err)
+	}
+	return &out, nil
 }

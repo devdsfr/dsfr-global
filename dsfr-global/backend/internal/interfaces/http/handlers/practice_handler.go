@@ -60,22 +60,26 @@ func (h *PracticeHandler) PutResume(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"headline": r.Headline, "raw_text": r.RawText, "updated_at": r.UpdatedAt})
 }
 
-// GetJob godoc: GET /api/v1/job
-func (h *PracticeHandler) GetJob(c *gin.Context) {
+// ListJobs godoc: GET /api/v1/jobs
+func (h *PracticeHandler) ListJobs(c *gin.Context) {
 	userID, ok := currentUserID(c)
 	if !ok {
 		return
 	}
-	j, err := h.svc.GetJob(c.Request.Context(), userID)
+	jobs, err := h.svc.ListJobs(c.Request.Context(), userID)
 	if err != nil {
 		respondCareerError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, jobJSON(j))
+	out := make([]gin.H, 0, len(jobs))
+	for i := range jobs {
+		out = append(out, jobJSON(&jobs[i]))
+	}
+	c.JSON(http.StatusOK, out)
 }
 
-// PutJob godoc: PUT /api/v1/job
-func (h *PracticeHandler) PutJob(c *gin.Context) {
+// CreateJob godoc: POST /api/v1/jobs
+func (h *PracticeHandler) CreateJob(c *gin.Context) {
 	userID, ok := currentUserID(c)
 	if !ok {
 		return
@@ -84,12 +88,104 @@ func (h *PracticeHandler) PutJob(c *gin.Context) {
 	if !bind(c, &in) {
 		return
 	}
-	j, err := h.svc.SaveJob(c.Request.Context(), userID, in)
+	j, err := h.svc.CreateJob(c.Request.Context(), userID, in)
+	if err != nil {
+		respondCareerError(c, err)
+		return
+	}
+	c.JSON(http.StatusCreated, jobJSON(j))
+}
+
+// UpdateJob godoc: PUT /api/v1/jobs/:id
+func (h *PracticeHandler) UpdateJob(c *gin.Context) {
+	userID, ok := currentUserID(c)
+	if !ok {
+		return
+	}
+	jobID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid job id"})
+		return
+	}
+	var in practice.JobInput
+	if !bind(c, &in) {
+		return
+	}
+	j, err := h.svc.UpdateJob(c.Request.Context(), userID, jobID, in)
 	if err != nil {
 		respondCareerError(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, jobJSON(j))
+}
+
+// DeleteJob godoc: DELETE /api/v1/jobs/:id
+func (h *PracticeHandler) DeleteJob(c *gin.Context) {
+	userID, ok := currentUserID(c)
+	if !ok {
+		return
+	}
+	jobID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid job id"})
+		return
+	}
+	if err := h.svc.DeleteJob(c.Request.Context(), userID, jobID); err != nil {
+		respondCareerError(c, err)
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
+// ActivateJob godoc: POST /api/v1/jobs/:id/activate
+func (h *PracticeHandler) ActivateJob(c *gin.Context) {
+	userID, ok := currentUserID(c)
+	if !ok {
+		return
+	}
+	jobID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid job id"})
+		return
+	}
+	if err := h.svc.SetActiveJob(c.Request.Context(), userID, jobID); err != nil {
+		respondCareerError(c, err)
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
+// EvaluateAnswer godoc: POST /api/v1/interview/evaluate
+func (h *PracticeHandler) EvaluateAnswer(c *gin.Context) {
+	userID, ok := currentUserID(c)
+	if !ok {
+		return
+	}
+	var in practice.EvaluateInput
+	if !bind(c, &in) {
+		return
+	}
+	out, err := h.svc.EvaluateAnswer(c.Request.Context(), userID, in)
+	if err != nil {
+		slog.Error("answer evaluation failed", "user", userID, "error", err)
+		respondCareerError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, out)
+}
+
+// Scores godoc: GET /api/v1/scores
+func (h *PracticeHandler) Scores(c *gin.Context) {
+	userID, ok := currentUserID(c)
+	if !ok {
+		return
+	}
+	s, err := h.svc.Scores(c.Request.Context(), userID)
+	if err != nil {
+		respondCareerError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, s)
 }
 
 // GenerateInterview godoc: POST /api/v1/interview/generate
@@ -126,12 +222,14 @@ func (h *PracticeHandler) LatestInterview(c *gin.Context) {
 }
 
 func jobJSON(j *career.Job) gin.H {
-	return gin.H{"title": j.Title, "seniority": j.Seniority, "stack": j.Stack,
-		"raw_text": j.RawText, "updated_at": j.UpdatedAt}
+	return gin.H{"id": j.ID.String(), "title": j.Title, "company": j.Company,
+		"seniority": j.Seniority, "stack": j.Stack, "raw_text": j.RawText,
+		"is_active": j.IsActive, "updated_at": j.UpdatedAt}
 }
 
 func interviewJSON(i *career.Interview) gin.H {
-	return gin.H{"id": i.ID.String(), "level": i.Level, "turns": i.Turns, "created_at": i.CreatedAt}
+	return gin.H{"id": i.ID.String(), "level": i.Level, "job_id": i.JobID.String(),
+		"turns": i.Turns, "created_at": i.CreatedAt}
 }
 
 func respondCareerError(c *gin.Context, err error) {
