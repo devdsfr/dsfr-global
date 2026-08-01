@@ -19,9 +19,15 @@ type JobInput struct {
 }
 
 // GenerateInput requests a new interview script, optionally for a specific job.
+//
+// Topics narrows the technical questions to chosen subjects (empty = let the
+// job posting decide). Focus shifts what the script optimises for: spoken
+// English, technical depth, or a balance of both.
 type GenerateInput struct {
-	Level string `json:"level" binding:"omitempty,oneof=beginner intermediate advanced"`
-	JobID string `json:"job_id" binding:"omitempty,uuid"`
+	Level  string   `json:"level" binding:"omitempty,oneof=beginner intermediate advanced"`
+	JobID  string   `json:"job_id" binding:"omitempty,uuid"`
+	Topics []string `json:"topics" binding:"omitempty,max=10,dive,max=40"`
+	Focus  string   `json:"focus" binding:"omitempty,oneof=language technical mixed"`
 }
 
 // EvaluateInput submits what the user actually said for one answer.
@@ -32,13 +38,29 @@ type EvaluateInput struct {
 }
 
 // EvaluationOutput is the AI feedback for one spoken answer.
+//
+// Content, Covered and Missed are zero/empty for turns with no expected points
+// (older scripts), which the frontend reads as "language-only feedback".
 type EvaluationOutput struct {
 	Score      int      `json:"score"`
 	Fluency    int      `json:"fluency"`
 	Grammar    int      `json:"grammar"`
 	Vocabulary int      `json:"vocabulary"`
+	Content    int      `json:"content"`
+	Topic      string   `json:"topic"`
+	Covered    []string `json:"covered"`
+	Missed     []string `json:"missed"`
 	Tips       []string `json:"tips"`
 	Improved   string   `json:"improved"`
+}
+
+// TopicScoreOutput is one row of the per-topic performance breakdown.
+type TopicScoreOutput struct {
+	Topic          string `json:"topic"`
+	Label          string `json:"label"`
+	Answers        int    `json:"answers"`
+	AverageScore   int    `json:"average_score"`
+	AverageContent int    `json:"average_content"`
 }
 
 // InterviewOutput is the script returned to the frontend.

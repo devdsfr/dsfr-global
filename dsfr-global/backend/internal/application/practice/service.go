@@ -151,7 +151,13 @@ func (s *Service) GenerateInterview(ctx context.Context, userID uuid.UUID, in Ge
 		return nil, err
 	}
 
-	prompt := buildPrompt(resume, job, level)
+	topics := career.FilterTopics(in.Topics)
+	focus := in.Focus
+	if focus == "" {
+		focus = "mixed"
+	}
+
+	prompt := buildPrompt(resume, job, level, topics, focus)
 	text, err := llm.Complete(ctx, prompt, 4000)
 	if err != nil {
 		return nil, err

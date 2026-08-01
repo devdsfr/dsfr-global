@@ -100,6 +100,19 @@ CREATE TABLE IF NOT EXISTS answer_evaluations (
 
 CREATE INDEX IF NOT EXISTS idx_evals_user_created ON answer_evaluations (user_id, created_at DESC);
 
+-- Technical practice: answers are graded on content against the turn's expected
+-- points, not only on language. topic is denormalised onto the evaluation so the
+-- per-topic breakdown survives the interview script being regenerated.
+ALTER TABLE answer_evaluations ADD COLUMN IF NOT EXISTS content INT NOT NULL DEFAULT 0;
+ALTER TABLE answer_evaluations ADD COLUMN IF NOT EXISTS topic VARCHAR(40) NOT NULL DEFAULT '';
+ALTER TABLE answer_evaluations ADD COLUMN IF NOT EXISTS covered JSONB NOT NULL DEFAULT '[]'::jsonb;
+ALTER TABLE answer_evaluations ADD COLUMN IF NOT EXISTS missed JSONB NOT NULL DEFAULT '[]'::jsonb;
+
+-- Partial index: rows without a topic are the pre-topic history and are never
+-- part of the breakdown, so they stay out of the index.
+CREATE INDEX IF NOT EXISTS idx_evals_user_topic
+    ON answer_evaluations (user_id, topic) WHERE topic <> '';
+
 -- Interview Prep Pack: an AI-generated study dossier for a specific job.
 CREATE TABLE IF NOT EXISTS prep_packs (
     id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),

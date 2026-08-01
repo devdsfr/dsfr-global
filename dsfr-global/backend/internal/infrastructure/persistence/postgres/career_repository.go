@@ -230,13 +230,67 @@ func (r *CareerRepository) SaveEvaluation(ctx context.Context, e *career.AnswerE
 	if err != nil {
 		return err
 	}
+	covered, err := json.Marshal(nonNil(e.Covered))
+	if err != nil {
+		return err
+	}
+	missed, err := json.Marshal(nonNil(e.Missed))
+	if err != nil {
+		return err
+	}
 	_, err = r.pool.Exec(ctx, `
 		INSERT INTO answer_evaluations
-		  (id, user_id, interview_id, turn_index, transcript, score, fluency, grammar, vocabulary, tips, improved)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+		  (id, user_id, interview_id, turn_index, transcript, score, fluency, grammar,
+		   vocabulary, tips, improved, content, topic, covered, missed)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`,
 		e.ID, e.UserID, e.InterviewID, e.TurnIndex, e.Transcript,
-		e.Score, e.Fluency, e.Grammar, e.Vocabulary, tips, e.Improved)
+		e.Score, e.Fluency, e.Grammar, e.Vocabulary, tips, e.Improved,
+		e.Content, e.Topic, covered, missed)
 	return err
+}
+
+// nonNil keeps a nil slice from marshalling to JSON null, which the NOT NULL
+// jsonb columns would reject.
+func nonNil(s []string) []string {
+	if s == nil {
+		return []string{}
+	}
+	return s
+}
+
+// TopicBreakdown averages each topic's answers so the UI can point the
+// candidate at their weakest subject. Only topic-tagged rows participate.
+func (r *CareerRepository) TopicBreakdown(ctx context.Context, userID uuid.UUID) ([]career.TopicScore, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT topic, COUNT(*), AVG(score), AVG(content)
+		FROM answer_evaluations
+		WHERE user_id=$1 AND topic <> ''
+		GROUP BY topic
+		ORDER BY AVG(content) ASC`, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	out := make([]career.TopicScore, 0, len(career.Topics))
+	for rows.Next() {
+		var (
+			ts                    career.TopicScore
+			avgScore, avgContent  *float64
+		)
+		if err := rows.Scan(&ts.Topic, &ts.Answers, &avgScore, &avgContent); err != nil {
+			return nil, err
+		}
+		if avgScore != nil {
+			ts.AverageScore = int(*avgScore + 0.5)
+		}
+		if avgContent != nil {
+			ts.AverageContent = int(*avgContent + 0.5)
+		}
+		ts.Label = career.TopicLabel(ts.Topic)
+		out = append(out, ts)
+	}
+	return out, rows.Err()
 }
 
 // ComputeScores averages the user's 20 most recent answer evaluations into the

@@ -35,9 +35,17 @@ type Job struct {
 
 // InterviewTurn is one exchange: the interviewer's question and the model
 // answer shown on the teleprompter for the candidate to read aloud.
+//
+// Topic and ExpectedPoints drive technical scoring: the topic lets the
+// candidate drill one subject and groups the results afterwards, while the
+// expected points are the rubric the answer is graded against. Both are empty
+// on turns generated before topic-aware practice existed, and the evaluator
+// falls back to language-only scoring in that case.
 type InterviewTurn struct {
-	Interviewer string `json:"interviewer"`
-	Answer      string `json:"answer"`
+	Interviewer    string   `json:"interviewer"`
+	Answer         string   `json:"answer"`
+	Topic          string   `json:"topic,omitempty"`
+	ExpectedPoints []string `json:"expected_points,omitempty"`
 }
 
 // Interview is a generated interview script for practice sessions.
@@ -61,6 +69,11 @@ type AISettings struct {
 }
 
 // AnswerEvaluation is the AI's assessment of one spoken answer.
+//
+// Fluency/Grammar/Vocabulary grade HOW the answer was said; Content grades
+// WHAT it said, against the turn's expected points. Both matter and they move
+// independently — a candidate can speak flawless English and still miss every
+// point the question was after.
 type AnswerEvaluation struct {
 	ID          uuid.UUID
 	UserID      uuid.UUID
@@ -71,6 +84,10 @@ type AnswerEvaluation struct {
 	Fluency     int      // 0-100
 	Grammar     int      // 0-100
 	Vocabulary  int      // 0-100
+	Content     int      // 0-100 — how well the expected points were covered
+	Topic       string   // topic id copied from the turn, for aggregation
+	Covered     []string // expected points the answer actually hit
+	Missed      []string // expected points the answer left out
 	Tips        []string // actionable improvements
 	Improved    string   // a better way to say it
 	CreatedAt   time.Time
