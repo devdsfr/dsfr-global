@@ -34,4 +34,7 @@ type Repository interface {
 
 	SavePrepPack(ctx context.Context, p *PrepPack) error
 	FindLatestPrepPack(ctx context.Context, userID, jobID uuid.UUID) (*PrepPack, error)
+
+	SaveDebrief(ctx context.Context, d *Debrief) error
+	ListDebriefsByUser(ctx context.Context, userID uuid.UUID, limit int) ([]Debrief, error)
 }

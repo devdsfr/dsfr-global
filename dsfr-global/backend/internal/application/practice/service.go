@@ -414,3 +414,108 @@ func parsePrepContent(text string) (*career.PrepContent, error) {
 	}
 	return &content, nil
 }
+
+// CreateDebrief analyzes the user's account of a REAL interview they just had:
+// what was asked, how they answered, what to fix before the next one. The score
+// feeds the DSFR Score alongside simulated practice.
+func (s *Service) CreateDebrief(ctx context.Context, userID uuid.UUID, in DebriefInput) (*career.Debrief, error) {
+	var jobID uuid.UUID
+	var job *career.Job
+	if in.JobID != "" {
+		parsed, err := uuid.Parse(in.JobID)
+		if err != nil {
+			return nil, fmt.Errorf("invalid job id")
+		}
+		if j, err := s.repo.FindJobByID(ctx, userID, parsed); err == nil {
+			job, jobID = j, parsed
+		}
+	}
+	// The résumé is optional here: the debrief is about what happened in the
+	// room, and we still want it to work for a user who skipped that step.
+	resume, _ := s.repo.FindResumeByUser(ctx, userID)
+
+	llm, err := s.completerFor(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	text, err := llm.Complete(ctx, buildDebriefPrompt(resume, job, in.Notes), 5000)
+	if err != nil {
+		return nil, err
+	}
+	content, err := parseDebriefContent(text)
+	if err != nil {
+		return nil, err
+	}
+
+	debrief := &career.Debrief{ID: uuid.New(), UserID: userID, JobID: jobID,
+		Notes: strings.TrimSpace(in.Notes), Score: content.Score,
+		Analysis: *content, CreatedAt: time.Now().UTC()}
+	if err := s.repo.SaveDebrief(ctx, debrief); err != nil {
+		return nil, err
+	}
+	return debrief, nil
+}
+
+// ListDebriefs returns the user's recent interview debriefs.
+func (s *Service) ListDebriefs(ctx context.Context, userID uuid.UUID) ([]career.Debrief, error) {
+	return s.repo.ListDebriefsByUser(ctx, userID, 20)
+}
+
+func buildDebriefPrompt(resume *career.Resume, job *career.Job, notes string) string {
+	jobBlock := "Not specified."
+	if job != nil {
+		jobBlock = fmt.Sprintf("%s at %s (%s) — stack: %s", job.Title, job.Company, job.Seniority, job.Stack)
+	}
+	resumeBlock := "Not provided."
+	if resume != nil {
+		resumeBlock = truncate(resume.RawText, 3000)
+	}
+	return fmt.Sprintf(`You are an interview coach doing a post-interview debrief. The candidate just finished a REAL job interview and is telling you how it went, from memory. Your job is to turn this into concrete coaching for the next one.
+
+TARGET JOB:
+%s
+
+CANDIDATE RESUME:
+%s
+
+WHAT THE CANDIDATE SAYS HAPPENED (their own recollection; may be in Portuguese or English, may be rough or incomplete):
+%s
+
+Analyze it and respond in ENGLISH, even if their notes are in Portuguese.
+
+- "score": 0-100, an honest estimate of how well this interview went based on what they describe. Be realistic, not inflated.
+- "summary": 2-3 sentences on how the interview went overall.
+- "went_well": 2-4 specific things they did well (only what their account supports).
+- "to_improve": 2-4 specific, actionable fixes for the next interview.
+- "questions": for each question they recall being asked, give "question", "your_answer" (a clean summary of what they said), "assessment" (short, honest), and "better_answer" (a stronger first-person answer they could give next time, grounded in their real résumé — never invent employers, dates or skills they don't have). If they recall no specific questions, return an empty list.
+- "study_next": 2-4 concrete topics to study before the next interview, based on where they struggled.
+- "follow_up_email": a short, professional thank-you email they can send to the interviewer.
+
+Respond with ONLY this JSON, no markdown, no commentary:
+{"score":0,"summary":"...","went_well":["..."],"to_improve":["..."],"questions":[{"question":"...","your_answer":"...","assessment":"...","better_answer":"..."}],"study_next":["..."],"follow_up_email":"..."}`,
+		jobBlock, resumeBlock, truncate(notes, 6000))
+}
+
+func parseDebriefContent(text string) (*career.DebriefContent, error) {
+	text = strings.TrimSpace(text)
+	text = strings.TrimPrefix(text, "```json")
+	text = strings.TrimPrefix(text, "```")
+	text = strings.TrimSuffix(text, "```")
+	if i := strings.Index(text, "{"); i > 0 {
+		text = text[i:]
+	}
+	if i := strings.LastIndex(text, "}"); i >= 0 {
+		text = text[:i+1]
+	}
+	var content career.DebriefContent
+	if err := json.Unmarshal([]byte(text), &content); err != nil {
+		return nil, fmt.Errorf("AI returned an unexpected format, try again: %w", err)
+	}
+	if content.Score < 0 {
+		content.Score = 0
+	}
+	if content.Score > 100 {
+		content.Score = 100
+	}
+	return &content, nil
+}

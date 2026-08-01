@@ -332,3 +332,45 @@ func prepJSON(p *career.PrepPack) gin.H {
 	return gin.H{"id": p.ID.String(), "job_id": p.JobID.String(),
 		"content": p.Content, "created_at": p.CreatedAt}
 }
+
+// CreateDebrief godoc: POST /api/v1/debrief
+func (h *PracticeHandler) CreateDebrief(c *gin.Context) {
+	userID, ok := currentUserID(c)
+	if !ok {
+		return
+	}
+	var in practice.DebriefInput
+	if !bind(c, &in) {
+		return
+	}
+	d, err := h.svc.CreateDebrief(c.Request.Context(), userID, in)
+	if err != nil {
+		slog.Error("debrief failed", "user", userID, "error", err)
+		respondCareerError(c, err)
+		return
+	}
+	c.JSON(http.StatusCreated, debriefJSON(d))
+}
+
+// ListDebriefs godoc: GET /api/v1/debrief
+func (h *PracticeHandler) ListDebriefs(c *gin.Context) {
+	userID, ok := currentUserID(c)
+	if !ok {
+		return
+	}
+	list, err := h.svc.ListDebriefs(c.Request.Context(), userID)
+	if err != nil {
+		respondCareerError(c, err)
+		return
+	}
+	out := make([]gin.H, 0, len(list))
+	for i := range list {
+		out = append(out, debriefJSON(&list[i]))
+	}
+	c.JSON(http.StatusOK, out)
+}
+
+func debriefJSON(d *career.Debrief) gin.H {
+	return gin.H{"id": d.ID.String(), "job_id": d.JobID.String(), "notes": d.Notes,
+		"score": d.Score, "analysis": d.Analysis, "created_at": d.CreatedAt}
+}

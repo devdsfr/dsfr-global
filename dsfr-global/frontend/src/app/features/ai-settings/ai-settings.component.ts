@@ -68,6 +68,10 @@ interface ProviderOption {
           </p>
         </div>
 
+        @if (keyWarning(); as warning) {
+          <p class="text-amber-400 text-sm">{{ warning }}</p>
+        }
+
         <div>
           <label class="label" for="model">Model <span class="text-gray-500">(optional)</span></label>
           <input id="model" type="text" class="input" formControlName="model"
@@ -115,6 +119,26 @@ export class AiSettingsComponent implements OnInit {
 
   selectProvider(id: string): void {
     this.form.patchValue({ provider: id });
+  }
+
+  /**
+   * AI Studio also hands out short-lived "AQ." tokens that look like API keys
+   * but expire after a while, which surfaces later as a confusing 400 from the
+   * provider. Warn at entry time instead.
+   */
+  keyWarning(): string | null {
+    const { provider, api_key } = this.form.getRawValue();
+    if (!api_key) return null;
+    if (provider === 'gemini' && !api_key.startsWith('AIza')) {
+      return 'Gemini API keys start with "AIza". Keys starting with "AQ." are temporary AI Studio tokens and stop working after a while — create a proper API key in AI Studio → Get API key.';
+    }
+    if (provider === 'openai' && !api_key.startsWith('sk-')) {
+      return 'OpenAI API keys start with "sk-".';
+    }
+    if (provider === 'anthropic' && !api_key.startsWith('sk-ant-')) {
+      return 'Anthropic API keys start with "sk-ant-".';
+    }
+    return null;
   }
 
   ngOnInit(): void {

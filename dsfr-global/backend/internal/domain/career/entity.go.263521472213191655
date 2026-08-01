@@ -128,13 +128,13 @@ type DebriefQuestion struct {
 
 // DebriefContent is the AI's analysis of a real interview.
 type DebriefContent struct {
-	Score         int               `json:"score"`
-	Summary       string            `json:"summary"`
-	WentWell      []string          `json:"went_well"`
-	ToImprove     []string          `json:"to_improve"`
-	Questions     []DebriefQuestion `json:"questions"`
-	StudyNext     []string          `json:"study_next"`
-	FollowUpEmail string            `json:"follow_up_email"`
+	Score          int               `json:"score"`
+	Summary        string            `json:"summary"`
+	WentWell       []string          `json:"went_well"`
+	ToImprove      []string          `json:"to_improve"`
+	Questions      []DebriefQuestion `json:"questions"`
+	StudyNext      []string          `json:"study_next"`
+	FollowUpEmail  string            `json:"follow_up_email"`
 }
 
 // Debrief is a reviewed real interview.

@@ -69,3 +69,9 @@ type AISettingsOutput struct {
 type PrepInput struct {
 	JobID string `json:"job_id" binding:"required,uuid"`
 }
+
+// DebriefInput is the user's own account of a real interview they just had.
+type DebriefInput struct {
+	JobID string `json:"job_id" binding:"omitempty,uuid"`
+	Notes string `json:"notes" binding:"required,min=40"`
+}

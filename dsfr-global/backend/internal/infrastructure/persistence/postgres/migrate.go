@@ -111,6 +111,20 @@ CREATE TABLE IF NOT EXISTS prep_packs (
 
 CREATE INDEX IF NOT EXISTS idx_preppacks_user_job ON prep_packs (user_id, job_id, created_at DESC);
 
+-- Post-interview debrief: the user recounts a REAL interview they just had and
+-- the AI turns it into coaching. score feeds the DSFR Score alongside practice.
+CREATE TABLE IF NOT EXISTS debriefs (
+    id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id    UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    job_id     UUID REFERENCES jobs(id) ON DELETE SET NULL,
+    notes      TEXT NOT NULL,
+    score      INT NOT NULL DEFAULT 0,
+    analysis   JSONB NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_debriefs_user_created ON debriefs (user_id, created_at DESC);
+
 -- Per-user AI provider configuration (BYOK). api_key_enc is AES-GCM encrypted.
 CREATE TABLE IF NOT EXISTS ai_settings (
     user_id     UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,

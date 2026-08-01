@@ -49,6 +49,11 @@ export const routes: Routes = [
           import('./features/prep/prep.component').then((m) => m.PrepComponent)
       },
       {
+        path: 'debrief',
+        loadComponent: () =>
+          import('./features/debrief/debrief.component').then((m) => m.DebriefComponent)
+      },
+      {
         path: 'interviews',
         loadComponent: () =>
           import('./features/interviews/interviews.component').then((m) => m.InterviewsComponent)

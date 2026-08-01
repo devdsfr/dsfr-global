@@ -260,6 +260,25 @@ func (r *CareerRepository) ComputeScores(ctx context.Context, userID uuid.UUID) 
 	}
 	s.AnswersPracticed = total
 	if total == 0 {
+		// No simulated practice yet — real-interview debriefs alone can still
+		// produce a score, so fall through instead of returning zeros.
+		var (
+			avgOnly   *float64
+			countOnly int
+		)
+		if err := r.pool.QueryRow(ctx, `
+			SELECT AVG(score), COUNT(*) FROM (
+				SELECT score FROM debriefs WHERE user_id=$1 AND score > 0
+				ORDER BY created_at DESC LIMIT 5
+			) d`, userID).Scan(&avgOnly, &countOnly); err != nil {
+			return nil, err
+		}
+		if countOnly > 0 && avgOnly != nil {
+			v := int(*avgOnly + 0.5)
+			s.RealInterviews = countOnly
+			s.Interview = v
+			s.OverallReadiness = v
+		}
 		return &s, nil
 	}
 	round := func(v *float64) int {
@@ -273,6 +292,26 @@ func (r *CareerRepository) ComputeScores(ctx context.Context, userID uuid.UUID) 
 	s.TechnicalCommunication = round(avgVocab)
 	// Overall blends the three, weighted toward interview performance.
 	s.OverallReadiness = (s.Interview*2 + s.Speaking + s.TechnicalCommunication + round(avgGrammar)) / 5
+
+	// Real interviews (debriefs) count double against simulated practice: how you
+	// performed under real pressure is the better signal of readiness.
+	var (
+		avgDebrief   *float64
+		debriefCount int
+	)
+	if err := r.pool.QueryRow(ctx, `
+		SELECT AVG(score), COUNT(*) FROM (
+			SELECT score FROM debriefs WHERE user_id=$1 AND score > 0
+			ORDER BY created_at DESC LIMIT 5
+		) d`, userID).Scan(&avgDebrief, &debriefCount); err != nil {
+		return nil, err
+	}
+	if debriefCount > 0 {
+		real := round(avgDebrief)
+		s.RealInterviews = debriefCount
+		s.Interview = (s.Interview + real*2) / 3
+		s.OverallReadiness = (s.OverallReadiness + real*2) / 3
+	}
 	return &s, nil
 }
 
@@ -307,4 +346,48 @@ func (r *CareerRepository) FindLatestPrepPack(ctx context.Context, userID, jobID
 		return nil, err
 	}
 	return &p, nil
+}
+
+func (r *CareerRepository) SaveDebrief(ctx context.Context, d *career.Debrief) error {
+	analysis, err := json.Marshal(d.Analysis)
+	if err != nil {
+		return err
+	}
+	var jobID any
+	if d.JobID != uuid.Nil {
+		jobID = d.JobID
+	}
+	_, err = r.pool.Exec(ctx, `
+		INSERT INTO debriefs (id, user_id, job_id, notes, score, analysis)
+		VALUES ($1, $2, $3, $4, $5, $6)`,
+		d.ID, d.UserID, jobID, d.Notes, d.Score, analysis)
+	return err
+}
+
+func (r *CareerRepository) ListDebriefsByUser(ctx context.Context, userID uuid.UUID, limit int) ([]career.Debrief, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT id, user_id, COALESCE(job_id, '00000000-0000-0000-0000-000000000000'::uuid),
+		       notes, score, analysis, created_at
+		FROM debriefs WHERE user_id=$1 ORDER BY created_at DESC LIMIT $2`, userID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	list := []career.Debrief{}
+	for rows.Next() {
+		var (
+			d           career.Debrief
+			analysisRaw []byte
+		)
+		if err := rows.Scan(&d.ID, &d.UserID, &d.JobID, &d.Notes, &d.Score,
+			&analysisRaw, &d.CreatedAt); err != nil {
+			return nil, err
+		}
+		if err := json.Unmarshal(analysisRaw, &d.Analysis); err != nil {
+			return nil, err
+		}
+		list = append(list, d)
+	}
+	return list, rows.Err()
 }

@@ -53,6 +53,7 @@ export interface Scores {
   speaking: number;
   technical_communication: number;
   answers_practiced: number;
+  real_interviews: number;
 }
 
 export interface PrepQuestion {
@@ -77,5 +78,31 @@ export interface PrepPack {
   id: string;
   job_id: string;
   content: PrepContent;
+  created_at: string;
+}
+
+export interface DebriefQuestion {
+  question: string;
+  your_answer: string;
+  assessment: string;
+  better_answer: string;
+}
+
+export interface DebriefContent {
+  score: number;
+  summary: string;
+  went_well: string[];
+  to_improve: string[];
+  questions: DebriefQuestion[];
+  study_next: string[];
+  follow_up_email: string;
+}
+
+export interface Debrief {
+  id: string;
+  job_id: string;
+  notes: string;
+  score: number;
+  analysis: DebriefContent;
   created_at: string;
 }
