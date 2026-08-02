@@ -3,7 +3,14 @@ import { ActivatedRoute, RouterLink } from '@angular/router';
 import { forkJoin, of } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 
-import { Evaluation, Interview, Job } from '../../core/models/practice.model';
+import {
+  Evaluation,
+  Interview,
+  InterviewFocus,
+  Job,
+  Topic,
+  TopicScore
+} from '../../core/models/practice.model';
 import { PracticeService } from '../../core/services/practice.service';
 
 type Stage = 'loading' | 'setup' | 'ready' | 'generating' | 'practicing' | 'finished';
@@ -83,6 +90,68 @@ interface SpeechRecognitionLike extends EventTarget {
               </select>
             </div>
 
+            <div>
+              <label class="label">Focus</label>
+              <div class="flex flex-wrap gap-2">
+                @for (f of focusOptions; track f.value) {
+                  <button type="button" [title]="f.hint"
+                          class="px-3 py-1.5 rounded-lg text-sm border transition-colors"
+                          [class]="focus() === f.value
+                            ? 'bg-brand border-brand text-white'
+                            : 'border-surface-border text-gray-400 hover:text-gray-200'"
+                          (click)="setFocus(f.value)">{{ f.label }}</button>
+                }
+              </div>
+            </div>
+
+            @if (topics().length) {
+              <div>
+                <div class="flex items-baseline justify-between mb-2">
+                  <label class="label mb-0">Topics</label>
+                  <button type="button" class="text-xs text-brand hover:text-brand-hover"
+                          (click)="selectedTopics.set([])"
+                          [disabled]="!selectedTopics().length">Clear</button>
+                </div>
+                <div class="flex flex-wrap gap-2">
+                  @for (t of topics(); track t.id) {
+                    <button type="button" [title]="t.description"
+                            class="px-3 py-1.5 rounded-full text-sm border transition-colors"
+                            [class]="selectedTopics().includes(t.id)
+                              ? 'bg-brand border-brand text-white'
+                              : 'border-surface-border text-gray-400 hover:text-gray-200'"
+                            (click)="toggleTopic(t.id)">{{ t.label }}</button>
+                  }
+                </div>
+                <p class="text-xs text-gray-500 mt-2">
+                  {{ selectedTopics().length
+                      ? 'Technical questions will stay inside these subjects.'
+                      : 'No selection — the job posting decides the subjects.' }}
+                </p>
+              </div>
+            }
+
+            @if (weakTopics().length) {
+              <div class="rounded-lg bg-black/30 border border-surface-border p-3">
+                <p class="text-xs uppercase tracking-wider text-gray-500 mb-2">Weakest so far</p>
+                <div class="space-y-2">
+                  @for (t of weakTopics(); track t.topic) {
+                    <div>
+                      <div class="flex justify-between text-sm mb-1">
+                        <button type="button" class="text-gray-300 hover:text-brand"
+                                (click)="toggleTopic(t.topic)">{{ t.label }}</button>
+                        <span class="text-gray-500">{{ t.average_content }} · {{ t.answers }}x</span>
+                      </div>
+                      <div class="h-1 bg-surface-border rounded-full overflow-hidden">
+                        <div class="h-full bg-amber-500 rounded-full"
+                             [style.width.%]="t.average_content"></div>
+                      </div>
+                    </div>
+                  }
+                </div>
+                <p class="text-xs text-gray-500 mt-2">Click a topic to add it to the next session.</p>
+              </div>
+            }
+
             @if (interview()) {
               <p class="text-sm text-gray-400">
                 Saved script: {{ interview()!.turns.length }} questions ({{ interview()!.level }}).
@@ -122,7 +191,14 @@ interface SpeechRecognitionLike extends EventTarget {
           <div class="card mb-6 border-l-4 border-l-brand">
             <div class="flex items-start justify-between gap-4">
               <div>
-                <p class="text-xs uppercase tracking-wider text-gray-500 mb-2">🎙 Interviewer</p>
+                <div class="flex items-center gap-2 mb-2">
+                  <p class="text-xs uppercase tracking-wider text-gray-500">🎙 Interviewer</p>
+                  @if (turn().topic) {
+                    <span class="text-xs px-2 py-0.5 rounded-full bg-brand/15 text-brand border border-brand/30">
+                      {{ topicLabel(turn().topic) }}
+                    </span>
+                  }
+                </div>
                 <p class="text-lg">{{ turn().interviewer }}</p>
               </div>
               <button class="shrink-0 text-sm text-brand hover:text-brand-hover"
@@ -176,17 +252,53 @@ interface SpeechRecognitionLike extends EventTarget {
                 <span class="text-3xl font-bold">{{ ev.score }}</span>
                 <span class="text-gray-500">/100</span>
               </div>
-              <div class="grid grid-cols-3 gap-3 mb-5">
+              <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
                 @for (m of metrics(ev); track m.label) {
                   <div>
                     <p class="text-xs text-gray-500 mb-1">{{ m.label }}</p>
                     <div class="h-1.5 bg-surface-border rounded-full overflow-hidden">
-                      <div class="h-full bg-brand rounded-full" [style.width.%]="m.value"></div>
+                      <div class="h-full rounded-full"
+                           [class]="m.label === 'Content' ? 'bg-amber-400' : 'bg-brand'"
+                           [style.width.%]="m.value"></div>
                     </div>
                     <p class="text-xs text-gray-400 mt-1">{{ m.value }}</p>
                   </div>
                 }
               </div>
+
+              @if (hasContentGrade(ev)) {
+                <div class="grid sm:grid-cols-2 gap-4 mb-5">
+                  @if (ev.covered.length) {
+                    <div>
+                      <p class="text-xs uppercase tracking-wider text-gray-500 mb-2">Points you covered</p>
+                      <ul class="space-y-1">
+                        @for (point of ev.covered; track point) {
+                          <li class="text-sm text-emerald-300/90 flex gap-2">
+                            <span class="shrink-0">✓</span><span>{{ point }}</span>
+                          </li>
+                        }
+                      </ul>
+                    </div>
+                  }
+                  @if (ev.missed.length) {
+                    <div>
+                      <p class="text-xs uppercase tracking-wider text-gray-500 mb-2">Points you missed</p>
+                      <ul class="space-y-1">
+                        @for (point of ev.missed; track point) {
+                          <li class="text-sm text-amber-300/90 flex gap-2">
+                            <span class="shrink-0">○</span><span>{{ point }}</span>
+                          </li>
+                        }
+                      </ul>
+                    </div>
+                  }
+                </div>
+              } @else {
+                <p class="text-xs text-gray-500 mb-5">
+                  This question has no content rubric — language feedback only. Generate a new
+                  interview to get technical scoring.
+                </p>
+              }
               @if (ev.tips.length) {
                 <p class="text-xs uppercase tracking-wider text-gray-500 mb-2">Tips</p>
                 <ul class="space-y-1.5 mb-4">
@@ -231,6 +343,33 @@ interface SpeechRecognitionLike extends EventTarget {
                 to get scored feedback.
               </p>
             }
+            @if (breakdown().length) {
+              <div class="max-w-md mx-auto mb-8 text-left">
+                <p class="text-xs uppercase tracking-wider text-gray-500 mb-3">Content by topic</p>
+                <div class="space-y-2.5">
+                  @for (t of breakdown(); track t.topic) {
+                    <div>
+                      <div class="flex justify-between text-sm mb-1">
+                        <span class="text-gray-300">{{ t.label }}</span>
+                        <span class="text-gray-500">{{ t.average_content }} · {{ t.answers }}x</span>
+                      </div>
+                      <div class="h-1.5 bg-surface-border rounded-full overflow-hidden">
+                        <div class="h-full rounded-full"
+                             [class]="t.average_content >= 70 ? 'bg-emerald-500'
+                                      : t.average_content >= 50 ? 'bg-amber-500' : 'bg-red-500'"
+                             [style.width.%]="t.average_content"></div>
+                      </div>
+                    </div>
+                  }
+                </div>
+                @if (weakTopics().length) {
+                  <p class="text-sm text-gray-400 mt-4">
+                    Drill next: <span class="text-gray-200">{{ weakTopicLabels() }}</span>.
+                  </p>
+                }
+              </div>
+            }
+
             <div class="flex justify-center gap-3">
               <button class="btn-primary" (click)="startPractice()">↻ Practice again</button>
               <button class="btn-primary bg-surface-border hover:bg-surface-border/70" (click)="generate()">
@@ -267,19 +406,73 @@ export class InterviewsComponent implements OnInit, OnDestroy {
   readonly turn = computed(() => this.interview()!.turns[this.current()]);
   readonly micSupported = signal(false);
 
+  readonly topics = signal<Topic[]>([]);
+  readonly selectedTopics = signal<string[]>([]);
+  readonly focus = signal<InterviewFocus>('mixed');
+  readonly breakdown = signal<TopicScore[]>([]);
+
+  /** Topics scoring under 70 on content are what the candidate should drill next. */
+  readonly weakTopics = computed(() =>
+    this.breakdown()
+      .filter((t) => t.answers > 0 && t.average_content > 0 && t.average_content < 70)
+      .slice(0, 3)
+  );
+
+  readonly focusOptions: ReadonlyArray<{ value: InterviewFocus; label: string; hint: string }> = [
+    { value: 'language', label: 'English', hint: 'Fluent delivery, light technical depth.' },
+    { value: 'mixed', label: 'Balanced', hint: 'Fluency plus real technical experience.' },
+    { value: 'technical', label: 'Technical', hint: 'Trade-offs, incidents, decisions you regret.' }
+  ];
+
   private recognition: SpeechRecognitionLike | null = null;
 
   metrics(ev: Evaluation) {
-    return [
+    const base = [
       { label: 'Fluency', value: ev.fluency },
       { label: 'Grammar', value: ev.grammar },
       { label: 'Vocabulary', value: ev.vocabulary }
     ];
+    // Content only appears when the turn carried a rubric; otherwise a 0 would
+    // read as "you covered nothing" rather than "nothing was graded".
+    return this.hasContentGrade(ev) ? [...base, { label: 'Content', value: ev.content }] : base;
+  }
+
+  /** True when the answer was graded on substance, not just on language. */
+  hasContentGrade(ev: Evaluation): boolean {
+    return (ev.covered?.length ?? 0) + (ev.missed?.length ?? 0) > 0;
+  }
+
+  weakTopicLabels(): string {
+    return this.weakTopics()
+      .map((t) => t.label)
+      .join(', ');
+  }
+
+  topicLabel(id: string | undefined): string {
+    if (!id) return '';
+    return this.topics().find((t) => t.id === id)?.label ?? id;
+  }
+
+  toggleTopic(id: string): void {
+    this.selectedTopics.update((list) =>
+      list.includes(id) ? list.filter((t) => t !== id) : [...list, id]
+    );
+  }
+
+  setFocus(value: InterviewFocus): void {
+    this.focus.set(value);
   }
 
   sessionAverage(): number {
     const s = this.sessionScores();
     return s.length ? Math.round(s.reduce((a, b) => a + b, 0) / s.length) : 0;
+  }
+
+  private loadBreakdown(): void {
+    this.practice
+      .getTopicBreakdown()
+      .pipe(catchError(() => of([] as TopicScore[])))
+      .subscribe((rows) => this.breakdown.set(rows));
   }
 
   ngOnInit(): void {
@@ -290,12 +483,16 @@ export class InterviewsComponent implements OnInit, OnDestroy {
       resume: this.practice.getResume().pipe(catchError(() => of(null))),
       jobs: this.practice.listJobs().pipe(catchError(() => of([] as Job[]))),
       script: this.practice.latestInterview().pipe(catchError(() => of(null))),
-      aiSettings: this.practice.getAISettings().pipe(catchError(() => of(null)))
-    }).subscribe(({ resume, jobs, script, aiSettings }) => {
+      aiSettings: this.practice.getAISettings().pipe(catchError(() => of(null))),
+      topics: this.practice.listTopics().pipe(catchError(() => of([] as Topic[]))),
+      breakdown: this.practice.getTopicBreakdown().pipe(catchError(() => of([] as TopicScore[])))
+    }).subscribe(({ resume, jobs, script, aiSettings, topics, breakdown }) => {
       this.hasResume.set(!!resume);
       this.jobs.set(jobs);
       this.aiReady.set(!!aiSettings && (aiSettings.has_key || aiSettings.server_default));
       this.interview.set(script);
+      this.topics.set(topics);
+      this.breakdown.set(breakdown);
 
       const queryJob = this.route.snapshot.queryParamMap.get('job');
       const active = jobs.find((j) => j.is_active) ?? jobs[0];
@@ -316,23 +513,30 @@ export class InterviewsComponent implements OnInit, OnDestroy {
   generate(): void {
     this.stage.set('generating');
     this.error.set(null);
-    this.practice.generateInterview('beginner', this.selectedJobId() || undefined).subscribe({
-      next: (script) => {
-        this.interview.set(script);
-        this.startPractice();
-      },
-      error: (err) => {
-        this.stage.set('ready');
-        const serverMessage: string | undefined = err.error?.error;
-        if (err.status === 503) {
-          this.error.set('AI is not configured yet. Connect your API key in AI Settings.');
-        } else if (serverMessage) {
-          this.error.set(serverMessage);
-        } else {
-          this.error.set('Could not generate the interview. Please try again.');
+    this.practice
+      .generateInterview(
+        'beginner',
+        this.selectedJobId() || undefined,
+        this.selectedTopics(),
+        this.focus()
+      )
+      .subscribe({
+        next: (script) => {
+          this.interview.set(script);
+          this.startPractice();
+        },
+        error: (err) => {
+          this.stage.set('ready');
+          const serverMessage: string | undefined = err.error?.error;
+          if (err.status === 503) {
+            this.error.set('AI is not configured yet. Connect your API key in AI Settings.');
+          } else if (serverMessage) {
+            this.error.set(serverMessage);
+          } else {
+            this.error.set('Could not generate the interview. Please try again.');
+          }
         }
-      }
-    });
+      });
   }
 
   startPractice(): void {
@@ -348,6 +552,7 @@ export class InterviewsComponent implements OnInit, OnDestroy {
     this.stopRecognition();
     if (this.current() === this.interview()!.turns.length - 1) {
       this.stage.set('finished');
+      this.loadBreakdown();
       return;
     }
     this.current.update((i) => i + 1);

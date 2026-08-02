@@ -20,6 +20,29 @@ export type JobInput = Omit<Job, 'id' | 'is_active' | 'updated_at'>;
 export interface InterviewTurn {
   interviewer: string;
   answer: string;
+  /** Topic id from the catalogue. Absent on scripts generated before topics existed. */
+  topic?: string;
+  /** Grading rubric for the answer — never shown to the candidate. */
+  expected_points?: string[];
+}
+
+/** One subject a practice question can target. Served by GET /interview/topics. */
+export interface Topic {
+  id: string;
+  label: string;
+  description: string;
+}
+
+/** What the generated script should optimise for. */
+export type InterviewFocus = 'language' | 'technical' | 'mixed';
+
+/** Aggregated performance for one topic across the practice history. */
+export interface TopicScore {
+  topic: string;
+  label: string;
+  answers: number;
+  average_score: number;
+  average_content: number;
 }
 
 export interface Interview {
@@ -43,6 +66,11 @@ export interface Evaluation {
   fluency: number;
   grammar: number;
   vocabulary: number;
+  /** 0-100 on the turn's rubric. 0 with empty covered/missed = language-only feedback. */
+  content: number;
+  topic: string;
+  covered: string[];
+  missed: string[];
   tips: string[];
   improved: string;
 }

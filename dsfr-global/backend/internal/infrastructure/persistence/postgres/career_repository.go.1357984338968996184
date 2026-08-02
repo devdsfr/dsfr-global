@@ -275,8 +275,8 @@ func (r *CareerRepository) TopicBreakdown(ctx context.Context, userID uuid.UUID)
 	out := make([]career.TopicScore, 0, len(career.Topics))
 	for rows.Next() {
 		var (
-			ts                   career.TopicScore
-			avgScore, avgContent *float64
+			ts                    career.TopicScore
+			avgScore, avgContent  *float64
 		)
 		if err := rows.Scan(&ts.Topic, &ts.Answers, &avgScore, &avgContent); err != nil {
 			return nil, err

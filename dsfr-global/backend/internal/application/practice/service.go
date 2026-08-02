@@ -175,12 +175,18 @@ func (s *Service) GenerateInterview(ctx context.Context, userID uuid.UUID, in Ge
 	return interview, nil
 }
 
-func buildPrompt(resume *career.Resume, job *career.Job, level string) string {
+func buildPrompt(resume *career.Resume, job *career.Job, level string, topics []string, focus string) string {
 	levelGuide := map[string]string{
 		"beginner":     "The candidate is a beginner English speaker (A2). Answers must use very simple, natural spoken English: short sentences, common words, no idioms. 40-70 words per answer.",
 		"intermediate": "The candidate is an intermediate English speaker (B1-B2). Answers should use natural spoken English with moderate complexity. 60-90 words per answer.",
 		"advanced":     "The candidate is an advanced English speaker (C1). Answers can use rich, natural professional English. 80-120 words per answer.",
 	}
+	focusGuide := map[string]string{
+		"language":  "FOCUS: spoken English. Keep technical depth light — the point is fluent delivery, not deep interrogation.",
+		"technical": "FOCUS: technical depth. Push for concrete experience: trade-offs weighed, decisions regretted, incidents handled. Avoid questions answerable from a textbook definition.",
+		"mixed":     "FOCUS: balanced. Mix fluency practice with questions that demand real technical experience.",
+	}
+
 	return fmt.Sprintf(`You are generating a mock job-interview script for a tech professional practicing spoken English.
 
 TARGET JOB:
@@ -200,12 +206,49 @@ Create an interview with EXACTLY 8 turns:
 
 %s
 
+%s
+%s
+
 The "answer" is what the candidate will READ ALOUD from a teleprompter, so it must be first-person, natural to speak, and grounded in the resume facts (do not invent employers or dates).
 
+For every turn also return:
+- "topic": exactly one id from this list — %s
+- "expected_points": 3 to 4 short phrases naming what a STRONG answer must cover.
+  These are grading criteria, not a summary of the model answer, and the
+  candidate never sees them. Make them checkable: "names a concrete trade-off",
+  "cites a measured result", not "answers well".
+
 Respond with ONLY this JSON, no markdown, no commentary:
-{"turns":[{"interviewer":"...","answer":"..."}]}`,
+{"turns":[{"interviewer":"...","answer":"...","topic":"...","expected_points":["...","..."]}]}`,
 		job.Title, job.Seniority, job.Stack, truncate(job.RawText, 3000),
-		truncate(resume.RawText, 4000), levelGuide[level])
+		truncate(resume.RawText, 4000), levelGuide[level],
+		focusGuide[focus], topicInstruction(topics), topicIDList())
+}
+
+// topicInstruction narrows the technical turns to the chosen subjects. With no
+// selection the job posting decides, which is the historical behaviour.
+func topicInstruction(topics []string) string {
+	if len(topics) == 0 {
+		return "TOPICS: let the job posting drive the technical subjects."
+	}
+	labels := make([]string, 0, len(topics))
+	for _, id := range topics {
+		labels = append(labels, career.TopicLabel(id))
+	}
+	return fmt.Sprintf(
+		"TOPICS: every technical turn (3-7) must target one of these subjects only — %s. "+
+			"Spread the turns across them rather than repeating one.",
+		strings.Join(labels, ", "))
+}
+
+// topicIDList is the closed set the model may tag turns with, so stored topics
+// always match the catalogue the breakdown groups by.
+func topicIDList() string {
+	ids := make([]string, 0, len(career.Topics))
+	for _, t := range career.Topics {
+		ids = append(ids, t.ID)
+	}
+	return strings.Join(ids, " | ")
 }
 
 func parseTurns(text string) ([]career.InterviewTurn, error) {
@@ -228,6 +271,14 @@ func parseTurns(text string) ([]career.InterviewTurn, error) {
 	}
 	if len(payload.Turns) == 0 {
 		return nil, fmt.Errorf("AI returned an empty script, try again")
+	}
+	// A hallucinated topic id would land in the database and split the
+	// breakdown into a phantom row, so anything outside the catalogue is
+	// cleared — the turn still works, it just doesn't get grouped.
+	for i := range payload.Turns {
+		if !career.ValidTopic(payload.Turns[i].Topic) {
+			payload.Turns[i].Topic = ""
+		}
 	}
 	return payload.Turns, nil
 }
@@ -259,8 +310,8 @@ func (s *Service) EvaluateAnswer(ctx context.Context, userID uuid.UUID, in Evalu
 	if err != nil {
 		return nil, err
 	}
-	prompt := buildEvaluationPrompt(turn.Interviewer, turn.Answer, in.Transcript)
-	text, err := llm.Complete(ctx, prompt, 1200)
+	prompt := buildEvaluationPrompt(turn, in.Transcript)
+	text, err := llm.Complete(ctx, prompt, 1400)
 	if err != nil {
 		return nil, err
 	}
@@ -268,10 +319,21 @@ func (s *Service) EvaluateAnswer(ctx context.Context, userID uuid.UUID, in Evalu
 	if err != nil {
 		return nil, err
 	}
+	// The topic is authoritative from the stored turn, never from the model's
+	// echo of it, so the breakdown can't be skewed by a bad completion.
+	out.Topic = turn.Topic
+	if len(turn.ExpectedPoints) == 0 {
+		// Pre-topic script: there was no rubric to grade against, so don't
+		// report a content score the UI would render as a genuine zero.
+		out.Content = 0
+		out.Covered = nil
+		out.Missed = nil
+	}
 
 	eval := &career.AnswerEvaluation{ID: uuid.New(), UserID: userID, InterviewID: interviewID,
 		TurnIndex: in.TurnIndex, Transcript: in.Transcript, Score: out.Score,
 		Fluency: out.Fluency, Grammar: out.Grammar, Vocabulary: out.Vocabulary,
+		Content: out.Content, Topic: out.Topic, Covered: out.Covered, Missed: out.Missed,
 		Tips: out.Tips, Improved: out.Improved, CreatedAt: time.Now().UTC()}
 	if err := s.repo.SaveEvaluation(ctx, eval); err != nil {
 		return nil, err
@@ -279,12 +341,20 @@ func (s *Service) EvaluateAnswer(ctx context.Context, userID uuid.UUID, in Evalu
 	return out, nil
 }
 
+// TopicBreakdown returns per-topic averages for the practice history.
+func (s *Service) TopicBreakdown(ctx context.Context, userID uuid.UUID) ([]career.TopicScore, error) {
+	return s.repo.TopicBreakdown(ctx, userID)
+}
+
+// Topics exposes the catalogue so the frontend and the prompts never drift.
+func (s *Service) Topics() []career.Topic { return career.Topics }
+
 // Scores returns the aggregated DSFR Score for the dashboard.
 func (s *Service) Scores(ctx context.Context, userID uuid.UUID) (*career.Scores, error) {
 	return s.repo.ComputeScores(ctx, userID)
 }
 
-func buildEvaluationPrompt(question, expected, transcript string) string {
+func buildEvaluationPrompt(turn career.InterviewTurn, transcript string) string {
 	return fmt.Sprintf(`You are an English-for-work coach evaluating a spoken interview answer.
 
 INTERVIEWER QUESTION:
@@ -292,7 +362,7 @@ INTERVIEWER QUESTION:
 
 MODEL ANSWER (what the candidate was practicing):
 %s
-
+%s
 WHAT THE CANDIDATE ACTUALLY SAID (speech-to-text transcript, so punctuation may be missing):
 %s
 
@@ -308,8 +378,31 @@ facts, but fix grammar and make it sound natural and professional. Keep it
 speakable and roughly the same length.
 
 Respond with ONLY this JSON, no markdown, no commentary:
-{"score":0,"fluency":0,"grammar":0,"vocabulary":0,"tips":["..."],"improved":"..."}`,
-		question, expected, transcript)
+{"score":0,"fluency":0,"grammar":0,"vocabulary":0,"content":0,"covered":["..."],"missed":["..."],"tips":["..."],"improved":"..."}`,
+		turn.Interviewer, turn.Answer, rubricBlock(turn.ExpectedPoints), transcript)
+}
+
+// rubricBlock adds content grading to the prompt. Kept separate because turns
+// generated before topic-aware practice carry no expected points, and inventing
+// a rubric for them would produce a score with nothing behind it.
+func rubricBlock(points []string) string {
+	if len(points) == 0 {
+		return "\nThis turn has no content rubric. Set \"content\" to 0 and return empty \"covered\" and \"missed\" arrays — grade language only.\n"
+	}
+	var b strings.Builder
+	b.WriteString("\nWHAT A STRONG ANSWER MUST COVER (the content rubric):\n")
+	for _, p := range points {
+		b.WriteString("- ")
+		b.WriteString(p)
+		b.WriteString("\n")
+	}
+	b.WriteString(`
+Grade "content" 0-100 on how much of this rubric the answer actually delivered.
+Judge substance, not phrasing: a point made in clumsy English still counts, and
+fluent English that never makes the point does not. List each rubric item under
+"covered" or "missed", copying its wording. Every item appears exactly once.
+`)
+	return b.String()
 }
 
 func parseEvaluation(text string) (*EvaluationOutput, error) {

@@ -3,7 +3,7 @@ import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 
 import { environment } from '../../../environments/environment';
-import { AISettings, Debrief, Evaluation, Interview, Job, JobInput, PrepPack, Resume, Scores } from '../models/practice.model';
+import { AISettings, Debrief, Evaluation, Interview, InterviewFocus, Job, JobInput, PrepPack, Resume, Scores, Topic, TopicScore } from '../models/practice.model';
 
 /** Résumé, target job and AI interview scripts. */
 @Injectable({ providedIn: 'root' })
@@ -43,6 +43,16 @@ export class PracticeService {
     return this.http.get<Scores>(`${this.api}/scores`);
   }
 
+  /** Catalogue of practice topics. Served by the API so ids never drift from the prompts. */
+  listTopics(): Observable<Topic[]> {
+    return this.http.get<Topic[]>(`${this.api}/interview/topics`);
+  }
+
+  /** Per-topic averages across the user's evaluated answers. */
+  getTopicBreakdown(): Observable<TopicScore[]> {
+    return this.http.get<TopicScore[]>(`${this.api}/scores/topics`);
+  }
+
   evaluateAnswer(payload: { interview_id: string; turn_index: number; transcript: string }): Observable<Evaluation> {
     return this.http.post<Evaluation>(`${this.api}/interview/evaluate`, payload);
   }
@@ -67,9 +77,18 @@ export class PracticeService {
     return this.http.get<Interview>(`${this.api}/interview/latest`);
   }
 
-  generateInterview(level: string, jobId?: string): Observable<Interview> {
-    return this.http.post<Interview>(`${this.api}/interview/generate`,
-      { level, ...(jobId ? { job_id: jobId } : {}) });
+  generateInterview(
+    level: string,
+    jobId?: string,
+    topics: string[] = [],
+    focus: InterviewFocus = 'mixed'
+  ): Observable<Interview> {
+    return this.http.post<Interview>(`${this.api}/interview/generate`, {
+      level,
+      focus,
+      ...(jobId ? { job_id: jobId } : {}),
+      ...(topics.length ? { topics } : {})
+    });
   }
 
   getAISettings(): Observable<AISettings> {

@@ -65,9 +65,9 @@ func FilterTopics(ids []string) []string {
 // TopicScore is the aggregated performance for one topic, used to tell the
 // candidate where to keep drilling.
 type TopicScore struct {
-	Topic          string `json:"topic"`
-	Label          string `json:"label"`
-	Answers        int    `json:"answers"`
-	AverageScore   int    `json:"average_score"`
-	AverageContent int    `json:"average_content"`
+	Topic        string `json:"topic"`
+	Label        string `json:"label"`
+	Answers      int    `json:"answers"`
+	AverageScore int    `json:"average_score"`
+	AverageContent int  `json:"average_content"`
 }

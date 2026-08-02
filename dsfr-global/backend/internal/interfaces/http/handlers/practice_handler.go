@@ -188,6 +188,27 @@ func (h *PracticeHandler) Scores(c *gin.Context) {
 	c.JSON(http.StatusOK, s)
 }
 
+// TopicBreakdown godoc: GET /api/v1/scores/topics
+func (h *PracticeHandler) TopicBreakdown(c *gin.Context) {
+	userID, ok := currentUserID(c)
+	if !ok {
+		return
+	}
+	rows, err := h.svc.TopicBreakdown(c.Request.Context(), userID)
+	if err != nil {
+		respondCareerError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, rows)
+}
+
+// Topics godoc: GET /api/v1/interview/topics
+// Static catalogue, so the frontend can render the selector without hardcoding
+// ids that the prompts and the breakdown would then have to keep in sync.
+func (h *PracticeHandler) Topics(c *gin.Context) {
+	c.JSON(http.StatusOK, h.svc.Topics())
+}
+
 // GenerateInterview godoc: POST /api/v1/interview/generate
 func (h *PracticeHandler) GenerateInterview(c *gin.Context) {
 	userID, ok := currentUserID(c)
