@@ -10,7 +10,7 @@ import { PracticeService } from '../../core/services/practice.service';
   standalone: true,
   imports: [ReactiveFormsModule],
   template: `
-    <div class="p-8 max-w-5xl mx-auto">
+    <div class="p-4 sm:p-8 max-w-5xl mx-auto">
       <header class="mb-8 flex items-start justify-between gap-4">
         <div>
           <h1 class="text-2xl font-bold">Target Jobs</h1>
@@ -95,7 +95,7 @@ import { PracticeService } from '../../core/services/practice.service';
                 }
               </div>
               @if (job.stack) {
-                <p class="text-xs text-gray-500 mb-4">{{ job.stack }}</p>
+                <p class="text-xs text-gray-400 mb-4">{{ job.stack }}</p>
               }
               <div class="mt-auto flex flex-wrap gap-2 pt-2">
                 @if (!job.is_active) {

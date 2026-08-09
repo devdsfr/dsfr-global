@@ -370,6 +370,14 @@ Grade the candidate's spoken answer from 0 to 100 on each dimension. Judge the
 transcript for content, grammar and word choice; ignore missing punctuation and
 minor transcription noise. Be encouraging but honest.
 
+IMPORTANT — speech-to-text artifacts: the transcript comes from a browser speech
+engine trained on everyday language, so technical terms are often mangled into
+similar-sounding common words (for example "GraphQL" can appear as "black girl",
+"Kubernetes" as "communities", "REST API" as "rest a p i"). When a garbled phrase
+sits where a technical term from the model answer belongs and sounds similar,
+treat it as correctly said and do NOT deduct points or mention it in the tips.
+Grade the candidate's actual English, not the transcription errors.
+
 Give 2-3 short, specific, actionable tips (each under 20 words) — point at real
 mistakes in what they said, not generic advice.
 

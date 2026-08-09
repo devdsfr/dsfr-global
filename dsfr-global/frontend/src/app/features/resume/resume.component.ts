@@ -31,7 +31,7 @@ const MAMMOTH_URL = 'https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammot
         <div class="flex flex-col sm:flex-row sm:items-center gap-4">
           <div class="flex-1">
             <p class="font-medium text-sm mb-1">📄 Upload your CV</p>
-            <p class="text-xs text-gray-500">
+            <p class="text-xs text-gray-400">
               PDF, Word (.docx) or plain text. We read the text in your browser — the file itself
               is never uploaded anywhere.
             </p>
@@ -65,7 +65,7 @@ const MAMMOTH_URL = 'https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammot
           <textarea id="raw_text" rows="14" class="input font-mono text-xs leading-relaxed"
                     formControlName="raw_text"
                     placeholder="Paste your full CV here (experience, skills, projects) or use the upload above..."></textarea>
-          <p class="text-xs text-gray-500 mt-1.5">Minimum 50 characters. Any language is fine — practice output is always in English.</p>
+          <p class="text-xs text-gray-400 mt-1.5">Minimum 50 characters. Any language is fine — practice output is always in English.</p>
         </div>
 
         @if (error()) {

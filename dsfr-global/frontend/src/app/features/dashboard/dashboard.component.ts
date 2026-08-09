@@ -12,7 +12,7 @@ import { PracticeService } from '../../core/services/practice.service';
   standalone: true,
   imports: [RouterLink],
   template: `
-    <div class="p-8 max-w-6xl mx-auto">
+    <div class="p-4 sm:p-8 max-w-6xl mx-auto">
       <header class="mb-8">
         <h1 class="text-2xl font-bold h-9 flex items-center">
           @if (userName(); as name) {
@@ -28,7 +28,7 @@ import { PracticeService } from '../../core/services/practice.service';
         @for (card of cards(); track card.label) {
           <div class="card">
             <p class="text-sm text-gray-400">{{ card.label }}</p>
-            <p class="text-3xl font-bold mt-2">{{ card.value }}<span class="text-base text-gray-500">/100</span></p>
+            <p class="text-3xl font-bold mt-2">{{ card.value }}<span class="text-base text-gray-400">/100</span></p>
             <div class="h-1.5 bg-surface-border rounded-full mt-3 overflow-hidden">
               <div class="h-full bg-brand rounded-full transition-all duration-700" [style.width.%]="card.value"></div>
             </div>
@@ -74,7 +74,7 @@ import { PracticeService } from '../../core/services/practice.service';
               <li class="flex items-center justify-between text-sm">
                 <span>
                   {{ job.title }}
-                  @if (job.company) { <span class="text-gray-500">· {{ job.company }}</span> }
+                  @if (job.company) { <span class="text-gray-400">· {{ job.company }}</span> }
                 </span>
                 @if (job.is_active) {
                   <span class="text-xs px-2 py-0.5 rounded-full bg-brand/20 text-brand">Active</span>

@@ -30,9 +30,9 @@ interface ProviderOption {
           <p class="text-sm">
             <span class="text-emerald-400">✓ Connected:</span>
             <span class="font-medium capitalize"> {{ current()!.provider }}</span>
-            <span class="text-gray-500"> · key {{ current()!.masked_key }}</span>
+            <span class="text-gray-400"> · key {{ current()!.masked_key }}</span>
             @if (current()!.model) {
-              <span class="text-gray-500"> · model {{ current()!.model }}</span>
+              <span class="text-gray-400"> · model {{ current()!.model }}</span>
             }
           </p>
         </div>
@@ -50,7 +50,7 @@ interface ProviderOption {
                         ? 'border-brand bg-brand/10 text-brand'
                         : 'border-surface-border text-gray-300 hover:bg-white/5'">
                 <span class="font-semibold block">{{ p.label }}</span>
-                <span class="text-xs text-gray-500">{{ p.defaultModel }}</span>
+                <span class="text-xs text-gray-400">{{ p.defaultModel }}</span>
               </button>
             }
           </div>
@@ -60,7 +60,7 @@ interface ProviderOption {
           <label class="label" for="api_key">API key</label>
           <input id="api_key" type="password" class="input font-mono" formControlName="api_key"
                  [placeholder]="selectedProvider().keyHint" autocomplete="off" />
-          <p class="text-xs text-gray-500 mt-1.5">
+          <p class="text-xs text-gray-400 mt-1.5">
             Create one at
             <a [href]="selectedProvider().consoleUrl" target="_blank" rel="noopener"
                class="text-brand hover:text-brand-hover">{{ selectedProvider().consoleUrl }}</a>.
@@ -73,7 +73,7 @@ interface ProviderOption {
         }
 
         <div>
-          <label class="label" for="model">Model <span class="text-gray-500">(optional)</span></label>
+          <label class="label" for="model">Model <span class="text-gray-400">(optional)</span></label>
           <input id="model" type="text" class="input" formControlName="model"
                  [placeholder]="'default: ' + selectedProvider().defaultModel" />
         </div>

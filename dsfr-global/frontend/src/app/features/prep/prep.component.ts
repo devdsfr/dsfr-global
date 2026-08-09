@@ -11,7 +11,7 @@ import { PracticeService } from '../../core/services/practice.service';
   standalone: true,
   imports: [RouterLink],
   template: `
-    <div class="p-8 max-w-4xl mx-auto">
+    <div class="p-4 sm:p-8 max-w-4xl mx-auto">
       <header class="mb-8">
         <h1 class="text-2xl font-bold">Interview Prep Pack</h1>
         <p class="text-gray-400 mt-1">
@@ -74,10 +74,10 @@ import { PracticeService } from '../../core/services/practice.service';
                 <div class="card">
                   <button class="w-full text-left flex items-start justify-between gap-3" (click)="toggle(i)">
                     <span class="font-medium">{{ i + 1 }}. {{ q.question }}</span>
-                    <span class="text-gray-500 shrink-0">{{ open().has(i) ? '−' : '+' }}</span>
+                    <span class="text-gray-400 shrink-0">{{ open().has(i) ? '−' : '+' }}</span>
                   </button>
                   @if (open().has(i)) {
-                    @if (q.why) { <p class="text-xs text-gray-500 mt-2">Why: {{ q.why }}</p> }
+                    @if (q.why) { <p class="text-xs text-gray-400 mt-2">Why: {{ q.why }}</p> }
                     <div class="mt-3 flex items-start justify-between gap-3">
                       <p class="text-sm text-emerald-300/90 leading-relaxed">{{ q.model_answer }}</p>
                       <button class="text-xs text-brand hover:text-brand-hover shrink-0" (click)="speak(q.model_answer)">🔊</button>

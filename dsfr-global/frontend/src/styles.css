@@ -4,9 +4,25 @@
 
 html { font-family: "Inter", system-ui, sans-serif; }
 
+/* Respect the OS "reduce motion" setting: spinners, pulses and transitions
+   are decorative here, so they are safe to neutralize entirely. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 @layer components {
-  .card { @apply bg-surface-card border border-surface-border rounded-xl p-6; }
-  .btn-primary { @apply bg-brand hover:bg-brand-hover text-white font-medium rounded-lg px-4 py-2.5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed; }
-  .input { @apply w-full bg-surface border border-surface-border rounded-lg px-3.5 py-2.5 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-brand/60 focus:border-brand; }
+  .card { @apply bg-surface-card border border-surface-border rounded-xl p-5 sm:p-6; }
+  .btn-primary { @apply bg-brand hover:bg-brand-hover text-white font-medium rounded-lg px-4 py-2.5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-surface; }
+  .input { @apply w-full bg-surface border border-surface-border rounded-lg px-3.5 py-2.5 text-sm text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-brand/60 focus:border-brand; }
   .label { @apply block text-sm font-medium text-gray-300 mb-1.5; }
+  /* Secondary/meta text. gray-500 on the dark surface only reaches 3.99:1,
+     below the 4.5:1 minimum, so hints use gray-400 (7.5:1) instead. */
+  .hint { @apply text-gray-400; }
 }

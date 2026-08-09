@@ -20,6 +20,7 @@ interface SpeechRecognitionLike extends EventTarget {
   lang: string;
   continuous: boolean;
   interimResults: boolean;
+  maxAlternatives: number;
   start(): void;
   stop(): void;
   onresult: ((e: any) => void) | null;
@@ -32,7 +33,7 @@ interface SpeechRecognitionLike extends EventTarget {
   standalone: true,
   imports: [RouterLink],
   template: `
-    <div class="p-8 max-w-4xl mx-auto">
+    <div class="p-4 sm:p-8 max-w-4xl mx-auto">
       @switch (stage()) {
 
         @case ('loading') { <div class="card animate-pulse h-40"></div> }
@@ -46,11 +47,11 @@ interface SpeechRecognitionLike extends EventTarget {
             <h2 class="font-semibold mb-3">Before you start</h2>
             <ul class="space-y-2 text-sm">
               <li class="flex items-center gap-2">
-                <span [class]="hasResume() ? 'text-emerald-400' : 'text-gray-500'">{{ hasResume() ? '✓' : '○' }}</span>
+                <span [class]="hasResume() ? 'text-emerald-400' : 'text-gray-400'">{{ hasResume() ? '✓' : '○' }}</span>
                 <a routerLink="/resume" class="text-brand hover:text-brand-hover">Upload your CV</a>
               </li>
               <li class="flex items-center gap-2">
-                <span [class]="jobs().length ? 'text-emerald-400' : 'text-gray-500'">{{ jobs().length ? '✓' : '○' }}</span>
+                <span [class]="jobs().length ? 'text-emerald-400' : 'text-gray-400'">{{ jobs().length ? '✓' : '○' }}</span>
                 <a routerLink="/job" class="text-brand hover:text-brand-hover">Add a target job</a>
               </li>
             </ul>
@@ -122,7 +123,7 @@ interface SpeechRecognitionLike extends EventTarget {
                             (click)="toggleTopic(t.id)">{{ t.label }}</button>
                   }
                 </div>
-                <p class="text-xs text-gray-500 mt-2">
+                <p class="text-xs text-gray-400 mt-2">
                   {{ selectedTopics().length
                       ? 'Technical questions will stay inside these subjects.'
                       : 'No selection — the job posting decides the subjects.' }}
@@ -132,14 +133,14 @@ interface SpeechRecognitionLike extends EventTarget {
 
             @if (weakTopics().length) {
               <div class="rounded-lg bg-black/30 border border-surface-border p-3">
-                <p class="text-xs uppercase tracking-wider text-gray-500 mb-2">Weakest so far</p>
+                <p class="text-xs uppercase tracking-wider text-gray-400 mb-2">Weakest so far</p>
                 <div class="space-y-2">
                   @for (t of weakTopics(); track t.topic) {
                     <div>
                       <div class="flex justify-between text-sm mb-1">
                         <button type="button" class="text-gray-300 hover:text-brand"
                                 (click)="toggleTopic(t.topic)">{{ t.label }}</button>
-                        <span class="text-gray-500">{{ t.average_content }} · {{ t.answers }}x</span>
+                        <span class="text-gray-400">{{ t.average_content }} · {{ t.answers }}x</span>
                       </div>
                       <div class="h-1 bg-surface-border rounded-full overflow-hidden">
                         <div class="h-full bg-amber-500 rounded-full"
@@ -148,7 +149,7 @@ interface SpeechRecognitionLike extends EventTarget {
                     </div>
                   }
                 </div>
-                <p class="text-xs text-gray-500 mt-2">Click a topic to add it to the next session.</p>
+                <p class="text-xs text-gray-400 mt-2">Click a topic to add it to the next session.</p>
               </div>
             }
 
@@ -181,7 +182,7 @@ interface SpeechRecognitionLike extends EventTarget {
         @case ('practicing') {
           <div class="mb-6 flex items-center justify-between">
             <p class="text-sm text-gray-400">Question {{ current() + 1 }} of {{ interview()!.turns.length }}</p>
-            <button class="text-sm text-gray-500 hover:text-gray-300" (click)="endSession()">End session</button>
+            <button class="text-sm text-gray-400 hover:text-gray-300" (click)="endSession()">End session</button>
           </div>
           <div class="h-1.5 bg-surface-border rounded-full mb-8 overflow-hidden">
             <div class="h-full bg-brand rounded-full transition-all duration-500"
@@ -192,7 +193,7 @@ interface SpeechRecognitionLike extends EventTarget {
             <div class="flex items-start justify-between gap-4">
               <div>
                 <div class="flex items-center gap-2 mb-2">
-                  <p class="text-xs uppercase tracking-wider text-gray-500">🎙 Interviewer</p>
+                  <p class="text-xs uppercase tracking-wider text-gray-400">🎙 Interviewer</p>
                   @if (turn().topic) {
                     <span class="text-xs px-2 py-0.5 rounded-full bg-brand/15 text-brand border border-brand/30">
                       {{ topicLabel(turn().topic) }}
@@ -209,40 +210,55 @@ interface SpeechRecognitionLike extends EventTarget {
           </div>
 
           <div class="card bg-black/40 border-brand/30 mb-6">
-            <p class="text-xs uppercase tracking-wider text-gray-500 mb-4">📺 Teleprompter — read this aloud</p>
+            <p class="text-xs uppercase tracking-wider text-gray-400 mb-4">📺 Teleprompter — read this aloud</p>
             <p class="text-2xl leading-relaxed font-medium tracking-wide">{{ turn().answer }}</p>
           </div>
 
           <!-- Recorder -->
           <div class="card mb-6">
             <div class="flex items-center justify-between gap-4 mb-3">
-              <p class="text-xs uppercase tracking-wider text-gray-500">🎤 Your answer</p>
+              <p class="text-xs uppercase tracking-wider text-gray-400" id="answerLabel">
+                <span aria-hidden="true">🎤</span> Your answer
+              </p>
               @if (micSupported()) {
-                <button class="px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                <button class="px-4 py-2 rounded-lg text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-surface-card"
                         [class]="recording()
-                          ? 'bg-red-500/20 text-red-300 border border-red-500/50 animate-pulse'
+                          ? 'bg-red-500/20 text-red-300 border border-red-500/50 motion-safe:animate-pulse'
                           : 'bg-brand text-white hover:bg-brand-hover'"
                         (click)="toggleRecording()">
-                  {{ recording() ? '⏹ Stop recording' : '● Record my answer' }}
+                  {{ recording() ? '⏹ Stop and score' : '● Record my answer' }}
                 </button>
               }
             </div>
 
             @if (transcript()) {
-              <p class="text-sm text-gray-300 bg-black/30 rounded-lg p-3 mb-3">{{ transcript() }}</p>
+              <!-- Editable: speech-to-text mangles technical terms, and the score
+                   should reflect what you said, not what the engine misheard. -->
+              <textarea rows="3" aria-labelledby="answerLabel"
+                        class="input text-sm bg-black/30 mb-2"
+                        [value]="transcript()"
+                        (input)="onTranscriptEdit($any($event.target).value)"></textarea>
+              <p class="text-xs text-gray-400 mb-3">
+                Misheard a technical term? Fix it above and re-score.
+              </p>
             } @else if (recording()) {
-              <p class="text-sm text-gray-500 italic">Listening… speak now.</p>
+              <p class="text-sm text-gray-400 italic">Listening… speak now.</p>
             } @else {
-              <p class="text-sm text-gray-500 italic">Press record and read the teleprompter out loud.</p>
+              <p class="text-sm text-gray-400 italic">Press record and read the teleprompter out loud.</p>
             }
 
-            @if (transcript() && !evaluation() && !evaluating()) {
-              <button class="btn-primary text-sm" (click)="evaluate()">✓ Get my score</button>
-            }
-            @if (evaluating()) {
-              <p class="text-sm text-gray-400">Evaluating your answer…</p>
-            }
-            @if (evalError()) { <p class="text-red-400 text-sm">{{ evalError() }}</p> }
+            <div aria-live="polite" class="min-h-[1.5rem]">
+              @if (evaluating()) {
+                <p class="text-sm text-gray-300">Scoring your answer…</p>
+              } @else if (transcript() && (!evaluation() || transcriptEdited())) {
+                <button class="btn-primary text-sm" (click)="evaluate()">
+                  {{ evaluation() ? '↻ Re-score' : '✓ Get my score' }}
+                </button>
+              }
+              @if (evalError()) {
+                <p class="text-red-400 text-sm" role="alert">{{ evalError() }}</p>
+              }
+            </div>
           </div>
 
           <!-- Feedback -->
@@ -250,12 +266,12 @@ interface SpeechRecognitionLike extends EventTarget {
             <div class="card mb-6 border-l-4 border-l-emerald-500">
               <div class="flex items-baseline gap-3 mb-4">
                 <span class="text-3xl font-bold">{{ ev.score }}</span>
-                <span class="text-gray-500">/100</span>
+                <span class="text-gray-400">/100</span>
               </div>
               <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
                 @for (m of metrics(ev); track m.label) {
                   <div>
-                    <p class="text-xs text-gray-500 mb-1">{{ m.label }}</p>
+                    <p class="text-xs text-gray-400 mb-1">{{ m.label }}</p>
                     <div class="h-1.5 bg-surface-border rounded-full overflow-hidden">
                       <div class="h-full rounded-full"
                            [class]="m.label === 'Content' ? 'bg-amber-400' : 'bg-brand'"
@@ -270,7 +286,7 @@ interface SpeechRecognitionLike extends EventTarget {
                 <div class="grid sm:grid-cols-2 gap-4 mb-5">
                   @if (ev.covered.length) {
                     <div>
-                      <p class="text-xs uppercase tracking-wider text-gray-500 mb-2">Points you covered</p>
+                      <p class="text-xs uppercase tracking-wider text-gray-400 mb-2">Points you covered</p>
                       <ul class="space-y-1">
                         @for (point of ev.covered; track point) {
                           <li class="text-sm text-emerald-300/90 flex gap-2">
@@ -282,7 +298,7 @@ interface SpeechRecognitionLike extends EventTarget {
                   }
                   @if (ev.missed.length) {
                     <div>
-                      <p class="text-xs uppercase tracking-wider text-gray-500 mb-2">Points you missed</p>
+                      <p class="text-xs uppercase tracking-wider text-gray-400 mb-2">Points you missed</p>
                       <ul class="space-y-1">
                         @for (point of ev.missed; track point) {
                           <li class="text-sm text-amber-300/90 flex gap-2">
@@ -294,13 +310,13 @@ interface SpeechRecognitionLike extends EventTarget {
                   }
                 </div>
               } @else {
-                <p class="text-xs text-gray-500 mb-5">
+                <p class="text-xs text-gray-400 mb-5">
                   This question has no content rubric — language feedback only. Generate a new
                   interview to get technical scoring.
                 </p>
               }
               @if (ev.tips.length) {
-                <p class="text-xs uppercase tracking-wider text-gray-500 mb-2">Tips</p>
+                <p class="text-xs uppercase tracking-wider text-gray-400 mb-2">Tips</p>
                 <ul class="space-y-1.5 mb-4">
                   @for (tip of ev.tips; track tip) {
                     <li class="text-sm text-gray-300">• {{ tip }}</li>
@@ -308,7 +324,7 @@ interface SpeechRecognitionLike extends EventTarget {
                 </ul>
               }
               @if (ev.improved) {
-                <p class="text-xs uppercase tracking-wider text-gray-500 mb-2">Better way to say it</p>
+                <p class="text-xs uppercase tracking-wider text-gray-400 mb-2">Better way to say it</p>
                 <p class="text-sm text-emerald-300/90 italic">"{{ ev.improved }}"</p>
               }
             </div>
@@ -345,13 +361,13 @@ interface SpeechRecognitionLike extends EventTarget {
             }
             @if (breakdown().length) {
               <div class="max-w-md mx-auto mb-8 text-left">
-                <p class="text-xs uppercase tracking-wider text-gray-500 mb-3">Content by topic</p>
+                <p class="text-xs uppercase tracking-wider text-gray-400 mb-3">Content by topic</p>
                 <div class="space-y-2.5">
                   @for (t of breakdown(); track t.topic) {
                     <div>
                       <div class="flex justify-between text-sm mb-1">
                         <span class="text-gray-300">{{ t.label }}</span>
-                        <span class="text-gray-500">{{ t.average_content }} · {{ t.answers }}x</span>
+                        <span class="text-gray-400">{{ t.average_content }} · {{ t.answers }}x</span>
                       </div>
                       <div class="h-1.5 bg-surface-border rounded-full overflow-hidden">
                         <div class="h-full rounded-full"
@@ -425,6 +441,11 @@ export class InterviewsComponent implements OnInit, OnDestroy {
   ];
 
   private recognition: SpeechRecognitionLike | null = null;
+  /** Set while an answer is being recorded; cleared when navigating away so
+   *  leaving a question never triggers a stray evaluation. */
+  private autoScoreOnStop = false;
+
+  readonly transcriptEdited = signal(false);
 
   metrics(ev: Evaluation) {
     const base = [
@@ -503,7 +524,7 @@ export class InterviewsComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     speechSynthesis.cancel();
-    this.stopRecognition();
+    this.stopRecognition(false);
   }
 
   selectJob(id: string): void {
@@ -549,7 +570,7 @@ export class InterviewsComponent implements OnInit, OnDestroy {
 
   next(): void {
     speechSynthesis.cancel();
-    this.stopRecognition();
+    this.stopRecognition(false);
     if (this.current() === this.interview()!.turns.length - 1) {
       this.stage.set('finished');
       this.loadBreakdown();
@@ -563,7 +584,7 @@ export class InterviewsComponent implements OnInit, OnDestroy {
   previous(): void {
     if (this.current() === 0) return;
     speechSynthesis.cancel();
-    this.stopRecognition();
+    this.stopRecognition(false);
     this.current.update((i) => i - 1);
     this.resetAnswerState();
     this.speak();
@@ -571,7 +592,7 @@ export class InterviewsComponent implements OnInit, OnDestroy {
 
   endSession(): void {
     speechSynthesis.cancel();
-    this.stopRecognition();
+    this.stopRecognition(false);
     this.stage.set('ready');
   }
 
@@ -580,6 +601,7 @@ export class InterviewsComponent implements OnInit, OnDestroy {
     this.evaluation.set(null);
     this.evalError.set(null);
     this.evaluating.set(false);
+    this.transcriptEdited.set(false);
   }
 
   /** The interviewer reads the current question aloud (browser TTS, English voice). */
@@ -602,6 +624,34 @@ export class InterviewsComponent implements OnInit, OnDestroy {
     this.recording() ? this.stopRecognition() : this.startRecognition();
   }
 
+  /**
+   * Picks the alternative that best matches the vocabulary of the expected
+   * answer. Speech recognition is trained on everyday language, so technical
+   * terms get mangled into common words ("GraphQL" → "black girl"). Because we
+   * already know what the candidate was meant to say, the alternative sharing
+   * the most words with it is almost always the correct reading.
+   */
+  private bestAlternative(result: any): string {
+    const expected = new Set(
+      (this.turn().answer.toLowerCase().match(/[a-z][a-z0-9+#.]{2,}/g) ?? [])
+    );
+    let best = result[0]?.transcript ?? '';
+    let bestScore = -Infinity;
+    for (let i = 0; i < result.length; i++) {
+      const alt: string = result[i].transcript;
+      const words = alt.toLowerCase().match(/[a-z][a-z0-9+#.]{2,}/g) ?? [];
+      const overlap = words.reduce((n, w) => n + (expected.has(w) ? 1 : 0), 0);
+      // Weight vocabulary overlap heavily, then fall back to the engine's own
+      // confidence ranking (earlier alternatives are its preferred reading).
+      const score = overlap * 10 - i;
+      if (score > bestScore) {
+        bestScore = score;
+        best = alt;
+      }
+    }
+    return best;
+  }
+
   private startRecognition(): void {
     const SR = (window as any).SpeechRecognition ?? (window as any).webkitSpeechRecognition;
     if (!SR) return;
@@ -611,24 +661,34 @@ export class InterviewsComponent implements OnInit, OnDestroy {
     rec.lang = 'en-US';
     rec.continuous = true;
     rec.interimResults = true;
+    // Ask for several readings so bestAlternative() can rescue technical terms.
+    rec.maxAlternatives = 3;
 
     let finalText = '';
     rec.onresult = (e: any) => {
       let interim = '';
       for (let i = e.resultIndex; i < e.results.length; i++) {
-        const chunk = e.results[i][0].transcript;
-        if (e.results[i].isFinal) finalText += chunk + ' ';
-        else interim += chunk;
+        if (e.results[i].isFinal) finalText += this.bestAlternative(e.results[i]) + ' ';
+        else interim += e.results[i][0].transcript;
       }
       this.transcript.set((finalText + interim).trim());
     };
     rec.onerror = () => {
+      this.autoScoreOnStop = false;
       this.recording.set(false);
       this.evalError.set('Microphone error. Check that the browser has permission to use it.');
     };
-    rec.onend = () => this.recording.set(false);
+    // Stopping the mic is the signal that the answer is finished, so score it
+    // right away instead of making the user click a second button.
+    rec.onend = () => {
+      this.recording.set(false);
+      if (this.autoScoreOnStop && this.transcript().trim() && !this.evaluating()) {
+        this.evaluate();
+      }
+    };
 
     this.recognition = rec;
+    this.autoScoreOnStop = true;
     this.evaluation.set(null);
     this.evalError.set(null);
     this.transcript.set('');
@@ -636,22 +696,34 @@ export class InterviewsComponent implements OnInit, OnDestroy {
     rec.start();
   }
 
-  private stopRecognition(): void {
+  /** @param autoScore keep the auto-evaluation on stop (false when navigating away). */
+  private stopRecognition(autoScore = true): void {
+    this.autoScoreOnStop = autoScore;
     this.recognition?.stop();
     this.recognition = null;
     this.recording.set(false);
   }
 
+  /** Manual re-score after the user corrects a mis-transcribed word. */
+  onTranscriptEdit(value: string): void {
+    this.transcript.set(value);
+    this.transcriptEdited.set(true);
+  }
+
   evaluate(): void {
     const script = this.interview();
-    if (!script || !this.transcript()) return;
+    if (!script || !this.transcript().trim()) return;
     this.evaluating.set(true);
     this.evalError.set(null);
+    this.transcriptEdited.set(false);
+    const scoredTurn = this.current();
     this.practice
-      .evaluateAnswer({ interview_id: script.id, turn_index: this.current(), transcript: this.transcript() })
+      .evaluateAnswer({ interview_id: script.id, turn_index: scoredTurn, transcript: this.transcript().trim() })
       .subscribe({
         next: (ev) => {
           this.evaluating.set(false);
+          // Guard against a late response landing on a different question.
+          if (this.current() !== scoredTurn) return;
           this.evaluation.set(ev);
           this.sessionScores.update((s) => [...s, ev.score]);
         },

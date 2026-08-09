@@ -25,7 +25,7 @@ interface SpeechRecognitionLike extends EventTarget {
   standalone: true,
   imports: [DatePipe, FormsModule, RouterLink],
   template: `
-    <div class="p-8 max-w-4xl mx-auto">
+    <div class="p-4 sm:p-8 max-w-4xl mx-auto">
       <header class="mb-8">
         <h1 class="text-2xl font-bold">Interview Debrief</h1>
         <p class="text-gray-400 mt-1">
@@ -71,7 +71,7 @@ interface SpeechRecognitionLike extends EventTarget {
           <textarea id="notes" rows="10" class="input text-sm leading-relaxed"
                     [(ngModel)]="notes" name="notes"
                     placeholder="Ex: Entrevista de 40 min com o tech lead. Perguntou como escalar um microserviço, falei de cache e réplicas mas travei na parte de Kubernetes. Depois perguntou sobre @Component e @Bean, respondi certo. No final não tinha perguntas preparadas..."></textarea>
-          <p class="text-xs text-gray-500 mt-1.5">
+          <p class="text-xs text-gray-400 mt-1.5">
             Write or dictate in Portuguese or English — the analysis always comes back in English.
             Minimum 40 characters.
           </p>
@@ -98,9 +98,9 @@ interface SpeechRecognitionLike extends EventTarget {
           <div class="flex items-baseline justify-between gap-3 mb-4">
             <div class="flex items-baseline gap-3">
               <span class="text-3xl font-bold">{{ d.score }}</span>
-              <span class="text-gray-500">/100</span>
+              <span class="text-gray-400">/100</span>
             </div>
-            <span class="text-xs text-gray-500">{{ d.created_at | date:'medium' }}</span>
+            <span class="text-xs text-gray-400">{{ d.created_at | date:'medium' }}</span>
           </div>
 
           @if (d.analysis.summary) {
@@ -131,16 +131,16 @@ interface SpeechRecognitionLike extends EventTarget {
           </div>
 
           @if (d.analysis.questions?.length) {
-            <p class="text-xs uppercase tracking-wider text-gray-500 mb-3">Question by question</p>
+            <p class="text-xs uppercase tracking-wider text-gray-400 mb-3">Question by question</p>
             <div class="space-y-3 mb-5">
               @for (q of d.analysis.questions; track q.question) {
                 <div class="bg-black/30 rounded-lg p-4">
                   <p class="text-sm font-medium mb-2">{{ q.question }}</p>
                   @if (q.assessment) {
-                    <p class="text-xs text-gray-500 mb-2">{{ q.assessment }}</p>
+                    <p class="text-xs text-gray-400 mb-2">{{ q.assessment }}</p>
                   }
                   @if (q.better_answer) {
-                    <p class="text-xs uppercase tracking-wider text-gray-500 mb-1">Next time, say:</p>
+                    <p class="text-xs uppercase tracking-wider text-gray-400 mb-1">Next time, say:</p>
                     <div class="flex items-start justify-between gap-3">
                       <p class="text-sm text-emerald-300/90 leading-relaxed">{{ q.better_answer }}</p>
                       <button class="text-xs text-brand hover:text-brand-hover shrink-0"
@@ -153,7 +153,7 @@ interface SpeechRecognitionLike extends EventTarget {
           }
 
           @if (d.analysis.study_next?.length) {
-            <p class="text-xs uppercase tracking-wider text-gray-500 mb-2">📚 Study before the next one</p>
+            <p class="text-xs uppercase tracking-wider text-gray-400 mb-2">📚 Study before the next one</p>
             <ul class="space-y-1.5 mb-5">
               @for (item of d.analysis.study_next; track item) {
                 <li class="text-sm text-gray-300">• {{ item }}</li>

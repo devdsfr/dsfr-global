@@ -9,7 +9,7 @@ import { AuthService } from '../../../core/services/auth.service';
   standalone: true,
   imports: [ReactiveFormsModule, RouterLink],
   template: `
-    <div class="min-h-screen flex items-center justify-center px-4">
+    <main class="min-h-screen flex items-center justify-center px-4">
       <div class="card w-full max-w-md">
         <h1 class="text-2xl font-bold mb-1">Welcome back</h1>
         <p class="text-gray-400 text-sm mb-6">Your international career coach is waiting.</p>
@@ -17,15 +17,21 @@ import { AuthService } from '../../../core/services/auth.service';
         <form [formGroup]="form" (ngSubmit)="submit()" class="space-y-4">
           <div>
             <label class="label" for="email">Email</label>
-            <input id="email" type="email" class="input" formControlName="email" placeholder="you@example.com" />
+            <input id="email" type="email" class="input" formControlName="email"
+                   autocomplete="email" [attr.aria-invalid]="error() ? 'true' : null"
+                   [attr.aria-describedby]="error() ? 'loginError' : null"
+                   placeholder="you@example.com" />
           </div>
           <div>
             <label class="label" for="password">Password</label>
-            <input id="password" type="password" class="input" formControlName="password" placeholder="••••••••" />
+            <input id="password" type="password" class="input" formControlName="password"
+                   autocomplete="current-password" [attr.aria-invalid]="error() ? 'true' : null"
+                   [attr.aria-describedby]="error() ? 'loginError' : null"
+                   placeholder="••••••••" />
           </div>
 
           @if (error()) {
-            <p class="text-red-400 text-sm">{{ error() }}</p>
+            <p id="loginError" role="alert" class="text-red-400 text-sm">{{ error() }}</p>
           }
 
           <button type="submit" class="btn-primary w-full" [disabled]="form.invalid || loading()">
@@ -38,7 +44,7 @@ import { AuthService } from '../../../core/services/auth.service';
           <a routerLink="/auth/register" class="text-brand hover:text-brand-hover">Create your account</a>
         </p>
       </div>
-    </div>
+    </main>
   `
 })
 export class LoginComponent {
