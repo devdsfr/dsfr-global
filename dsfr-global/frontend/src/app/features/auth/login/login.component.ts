@@ -3,13 +3,15 @@ import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 
 import { AuthService } from '../../../core/services/auth.service';
+import { LogoComponent } from '../../../shared/logo.component';
 
 @Component({
   selector: 'app-login',
   standalone: true,
-  imports: [ReactiveFormsModule, RouterLink],
+  imports: [LogoComponent, ReactiveFormsModule, RouterLink],
   template: `
-    <main class="min-h-screen flex items-center justify-center px-4">
+    <main class="min-h-screen flex flex-col items-center justify-center px-4">
+      <app-logo [size]="34" wordmarkClass="text-xl" class="mb-6" />
       <div class="card w-full max-w-md">
         <h1 class="text-2xl font-bold mb-1">Welcome back</h1>
         <p class="text-gray-400 text-sm mb-6">Your international career coach is waiting.</p>

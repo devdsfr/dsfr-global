@@ -3,6 +3,7 @@ import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } fro
 import { filter } from 'rxjs/operators';
 
 import { AuthService } from '../core/services/auth.service';
+import { LogoComponent } from '../shared/logo.component';
 
 interface NavItem {
   label: string;
@@ -13,7 +14,7 @@ interface NavItem {
 @Component({
   selector: 'app-shell',
   standalone: true,
-  imports: [RouterOutlet, RouterLink, RouterLinkActive],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, LogoComponent],
   template: `
     <a href="#main"
        class="sr-only focus:not-sr-only focus:absolute focus:top-3 focus:left-3 focus:z-50 focus:rounded-lg focus:bg-brand focus:px-4 focus:py-2 focus:text-white">
@@ -37,7 +38,7 @@ interface NavItem {
             }
           </svg>
         </button>
-        <span class="text-base font-bold tracking-tight">DSFR <span class="text-brand">Global</span></span>
+        <app-logo [size]="24" wordmarkClass="text-base" />
       </div>
 
       <!-- Backdrop closes the drawer on mobile -->
@@ -49,7 +50,10 @@ interface NavItem {
              class="fixed inset-y-0 left-0 z-40 flex w-64 shrink-0 flex-col border-r border-surface-border bg-surface-card transition-transform duration-200 lg:static lg:translate-x-0 motion-reduce:transition-none"
              [class]="menuOpen() ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'">
         <div class="hidden lg:block px-6 py-5 border-b border-surface-border">
-          <span class="text-lg font-bold tracking-tight">DSFR <span class="text-brand">Global</span></span>
+          <a routerLink="/dashboard" class="rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand">
+            <span class="sr-only">DSFR Global — go to dashboard</span>
+            <app-logo [size]="28" />
+          </a>
         </div>
         <nav class="flex-1 overflow-y-auto px-3 py-4 space-y-1" aria-label="Main">
           @for (item of nav; track item.path) {
