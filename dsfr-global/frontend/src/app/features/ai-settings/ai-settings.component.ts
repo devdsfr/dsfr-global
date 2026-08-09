@@ -122,15 +122,15 @@ export class AiSettingsComponent implements OnInit {
   }
 
   /**
-   * AI Studio also hands out short-lived "AQ." tokens that look like API keys
-   * but expire after a while, which surfaces later as a confusing 400 from the
-   * provider. Warn at entry time instead.
+   * A light format check so an obviously wrong value (a project number, a
+   * pasted URL) is caught here instead of failing later as an opaque provider
+   * error. Gemini keys come in more than one valid shape, so it is only a hint.
    */
   keyWarning(): string | null {
     const { provider, api_key } = this.form.getRawValue();
     if (!api_key) return null;
-    if (provider === 'gemini' && !api_key.startsWith('AIza')) {
-      return 'Gemini API keys start with "AIza". Keys starting with "AQ." are temporary AI Studio tokens and stop working after a while — create a proper API key in AI Studio → Get API key.';
+    if (provider === 'gemini' && !api_key.startsWith('AIza') && !api_key.startsWith('AQ.')) {
+      return 'That does not look like a Gemini API key — create one in AI Studio → Get API key.';
     }
     if (provider === 'openai' && !api_key.startsWith('sk-')) {
       return 'OpenAI API keys start with "sk-".';

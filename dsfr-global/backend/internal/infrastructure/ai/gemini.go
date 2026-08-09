@@ -44,20 +44,23 @@ type geminiContent struct {
 
 type geminiPart struct {
 	Text string `json:"text"`
+	// Thought marks internal reasoning parts on thinking models. They must be
+	// skipped: the answer we want is the first non-thought part.
+	Thought bool `json:"thought,omitempty"`
 }
 
 type geminiGenConfig struct {
-	MaxOutputTokens int                   `json:"maxOutputTokens"`
-	ThinkingConfig  *geminiThinkingConfig `json:"thinkingConfig,omitempty"`
+	MaxOutputTokens int `json:"maxOutputTokens"`
 }
 
-// geminiThinkingConfig disables "thinking" on Gemini 2.5+/3.x models. Those
-// models spend output tokens on internal reasoning first, which can consume
-// the whole budget and return an empty response (finishReason=MAX_TOKENS).
-// We need plain JSON out, so thinking is turned off.
-type geminiThinkingConfig struct {
-	ThinkingBudget int `json:"thinkingBudget"`
-}
+// minGeminiTokens gives thinking models room to reason AND still emit the
+// answer. Thinking consumes the same output budget, so a tight limit can end
+// the response before any text is produced (finishReason=MAX_TOKENS).
+//
+// Note: we deliberately do NOT send thinkingConfig. Setting thinkingBudget to 0
+// is rejected with 400 INVALID_ARGUMENT by current Gemini 3.x models, which
+// cannot have thinking disabled — omitting the field works across all versions.
+const minGeminiTokens = 2000
 
 type geminiResponse struct {
 	Candidates []struct {
@@ -76,12 +79,12 @@ func (c *GeminiClient) Complete(ctx context.Context, prompt string, maxTokens in
 	if !c.Configured() {
 		return "", ErrNotConfigured
 	}
+	if maxTokens < minGeminiTokens {
+		maxTokens = minGeminiTokens
+	}
 	body, err := json.Marshal(geminiRequest{
-		Contents: []geminiContent{{Parts: []geminiPart{{Text: prompt}}}},
-		GenerationConfig: geminiGenConfig{
-			MaxOutputTokens: maxTokens,
-			ThinkingConfig:  &geminiThinkingConfig{ThinkingBudget: 0},
-		},
+		Contents:         []geminiContent{{Parts: []geminiPart{{Text: prompt}}}},
+		GenerationConfig: geminiGenConfig{MaxOutputTokens: maxTokens},
 	})
 	if err != nil {
 		return "", err
@@ -117,11 +120,15 @@ func (c *GeminiClient) Complete(ctx context.Context, prompt string, maxTokens in
 	if len(parsed.Candidates) == 0 {
 		return "", fmt.Errorf("gemini api: no candidates returned (status %d)", resp.StatusCode)
 	}
-	if len(parsed.Candidates[0].Content.Parts) == 0 {
-		if parsed.Candidates[0].FinishReason == "MAX_TOKENS" {
-			return "", fmt.Errorf("gemini api: response hit the token limit before producing text; try a shorter résumé/job posting")
+	// Thinking models can return reasoning parts alongside the answer; take the
+	// first part that carries real output text.
+	for _, part := range parsed.Candidates[0].Content.Parts {
+		if !part.Thought && part.Text != "" {
+			return part.Text, nil
 		}
-		return "", fmt.Errorf("gemini api: empty response (finishReason=%s)", parsed.Candidates[0].FinishReason)
 	}
-	return parsed.Candidates[0].Content.Parts[0].Text, nil
+	if parsed.Candidates[0].FinishReason == "MAX_TOKENS" {
+		return "", fmt.Errorf("gemini api: response hit the token limit before producing text; try a shorter résumé/job posting")
+	}
+	return "", fmt.Errorf("gemini api: empty response (finishReason=%s)", parsed.Candidates[0].FinishReason)
 }

@@ -47,7 +47,7 @@ interface SpeechRecognitionLike extends EventTarget {
             <ul class="space-y-2 text-sm">
               <li class="flex items-center gap-2">
                 <span [class]="hasResume() ? 'text-emerald-400' : 'text-gray-500'">{{ hasResume() ? '✓' : '○' }}</span>
-                <a routerLink="/resume" class="text-brand hover:text-brand-hover">Register your résumé</a>
+                <a routerLink="/resume" class="text-brand hover:text-brand-hover">Upload your CV</a>
               </li>
               <li class="flex items-center gap-2">
                 <span [class]="jobs().length ? 'text-emerald-400' : 'text-gray-500'">{{ jobs().length ? '✓' : '○' }}</span>

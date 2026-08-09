@@ -16,7 +16,7 @@ import { PracticeService } from '../../core/services/practice.service';
         <h1 class="text-2xl font-bold">Interview Prep Pack</h1>
         <p class="text-gray-400 mt-1">
           A personalized study dossier for a real interview: the questions most likely to come up,
-          strong answers built from your résumé, questions to ask back, and how to handle your weak spots.
+          strong answers built from your CV, questions to ask back, and how to handle your weak spots.
           Study it so the answers are yours.
         </p>
       </header>
@@ -27,7 +27,7 @@ import { PracticeService } from '../../core/services/practice.service';
         <div class="card text-center py-14">
           <p class="text-4xl mb-3">🎯</p>
           <p class="font-semibold mb-1">Add a target job first</p>
-          <p class="text-gray-400 text-sm mb-6">The prep pack is built from a specific job + your résumé.</p>
+          <p class="text-gray-400 text-sm mb-6">The prep pack is built from a specific job + your CV.</p>
           <a routerLink="/job" class="btn-primary inline-block">Add a target job</a>
         </div>
       } @else {

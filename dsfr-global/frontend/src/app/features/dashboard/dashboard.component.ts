@@ -41,8 +41,8 @@ import { PracticeService } from '../../core/services/practice.service';
           <section class="card mb-8">
             <h2 class="font-semibold mb-2">Next mission</h2>
             <p class="text-gray-400 text-sm">
-              Your scores are still at zero because you haven't practiced yet. Register your
-              <a routerLink="/resume" class="text-brand hover:text-brand-hover">résumé</a>, add a
+              Your scores are still at zero because you haven't practiced yet. Upload your
+              <a routerLink="/resume" class="text-brand hover:text-brand-hover">CV</a>, add a
               <a routerLink="/job" class="text-brand hover:text-brand-hover">target job</a>, then
               <a routerLink="/interviews" class="text-brand hover:text-brand-hover">record your first interview answer</a> —
               the AI scores what you say and these cards start filling up.
