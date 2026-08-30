@@ -82,6 +82,7 @@ export interface Scores {
   technical_communication: number;
   answers_practiced: number;
   real_interviews: number;
+  sessions_practiced: number;
 }
 
 export interface PrepQuestion {

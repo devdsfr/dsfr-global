@@ -51,10 +51,23 @@ import { ActivityCalendarComponent } from './activity-calendar.component';
           </section>
         } @else {
           <section class="card mb-8">
-            <h2 class="font-semibold mb-2">Keep going</h2>
+            <div class="flex flex-wrap items-baseline gap-x-8 gap-y-3 mb-3">
+              <div>
+                <p class="text-3xl font-bold">{{ s.sessions_practiced }}</p>
+                <p class="text-xs text-gray-400">interviews trained</p>
+              </div>
+              <div>
+                <p class="text-3xl font-bold">{{ s.answers_practiced }}</p>
+                <p class="text-xs text-gray-400">answers scored</p>
+              </div>
+              @if (s.real_interviews) {
+                <div>
+                  <p class="text-3xl font-bold">{{ s.real_interviews }}</p>
+                  <p class="text-xs text-gray-400">real interviews</p>
+                </div>
+              }
+            </div>
             <p class="text-gray-400 text-sm">
-              Based on your last {{ s.answers_practiced }} scored
-              {{ s.answers_practiced === 1 ? 'answer' : 'answers' }}.
               <a routerLink="/interviews" class="text-brand hover:text-brand-hover">Practice again</a>
               to raise your score — fluency grows with repetition.
             </p>
