@@ -53,6 +53,8 @@ func New(cfg *config.Config, tokens *security.TokenManager,
 			protected.POST("/interview/generate", practiceHandler.GenerateInterview)
 			protected.GET("/interview/latest", practiceHandler.LatestInterview)
 			protected.POST("/interview/evaluate", practiceHandler.EvaluateAnswer)
+			protected.POST("/interview/score-session", practiceHandler.ScoreSession)
+			protected.GET("/sessions", practiceHandler.ListSessions)
 			protected.POST("/prep/generate", practiceHandler.GeneratePrepPack)
 			protected.GET("/prep/:jobId", practiceHandler.LatestPrepPack)
 			protected.POST("/debrief", practiceHandler.CreateDebrief)

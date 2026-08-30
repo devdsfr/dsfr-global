@@ -313,6 +313,13 @@ func (r *CareerRepository) ComputeScores(ctx context.Context, userID uuid.UUID) 
 		return nil, err
 	}
 	s.AnswersPracticed = total
+	// Counted before the early return below so the session total is reported
+	// even for a user whose answers have not been scored.
+	if err := r.pool.QueryRow(ctx,
+		`SELECT COUNT(*) FROM practice_sessions WHERE user_id=$1`, userID).
+		Scan(&s.SessionsPracticed); err != nil {
+		return nil, err
+	}
 	if total == 0 {
 		// No simulated practice yet — real-interview debriefs alone can still
 		// produce a score, so fall through instead of returning zeros.
@@ -400,6 +407,46 @@ func (r *CareerRepository) FindLatestPrepPack(ctx context.Context, userID, jobID
 		return nil, err
 	}
 	return &p, nil
+}
+
+func (r *CareerRepository) SaveSession(ctx context.Context, s *career.PracticeSession) error {
+	var interviewID, jobID any
+	if s.InterviewID != uuid.Nil {
+		interviewID = s.InterviewID
+	}
+	if s.JobID != uuid.Nil {
+		jobID = s.JobID
+	}
+	_, err := r.pool.Exec(ctx, `
+		INSERT INTO practice_sessions (id, user_id, interview_id, job_id, job_title, answers, score)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+		s.ID, s.UserID, interviewID, jobID, s.JobTitle, s.Answers, s.Score)
+	return err
+}
+
+func (r *CareerRepository) ListSessionsByUser(ctx context.Context, userID uuid.UUID, limit int) ([]career.PracticeSession, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT id, user_id,
+		       COALESCE(interview_id, '00000000-0000-0000-0000-000000000000'::uuid),
+		       COALESCE(job_id, '00000000-0000-0000-0000-000000000000'::uuid),
+		       job_title, answers, score, created_at
+		FROM practice_sessions WHERE user_id=$1
+		ORDER BY created_at DESC LIMIT $2`, userID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	list := []career.PracticeSession{}
+	for rows.Next() {
+		var s career.PracticeSession
+		if err := rows.Scan(&s.ID, &s.UserID, &s.InterviewID, &s.JobID,
+			&s.JobTitle, &s.Answers, &s.Score, &s.CreatedAt); err != nil {
+			return nil, err
+		}
+		list = append(list, s)
+	}
+	return list, rows.Err()
 }
 
 func (r *CareerRepository) SaveDebrief(ctx context.Context, d *career.Debrief) error {

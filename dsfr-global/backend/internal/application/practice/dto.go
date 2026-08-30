@@ -87,6 +87,55 @@ type AISettingsOutput struct {
 	ServerDefault bool   `json:"server_default"` // true if the server has its own fallback key
 }
 
+// SessionAnswerInput is one recorded answer submitted at the end of a session.
+type SessionAnswerInput struct {
+	TurnIndex  int    `json:"turn_index"`
+	Transcript string `json:"transcript"`
+}
+
+// ScoreSessionInput scores a whole practice session in one request, so the
+// candidate answers question after question without waiting for a grade.
+type ScoreSessionInput struct {
+	InterviewID string               `json:"interview_id" binding:"required,uuid"`
+	Answers     []SessionAnswerInput `json:"answers" binding:"required,min=1,dive"`
+}
+
+// SessionAnswerScore is the grade for one answer inside the session report.
+type SessionAnswerScore struct {
+	TurnIndex  int      `json:"turn_index"`
+	Question   string   `json:"question"`
+	Transcript string   `json:"transcript"`
+	Score      int      `json:"score"`
+	Fluency    int      `json:"fluency"`
+	Grammar    int      `json:"grammar"`
+	Vocabulary int      `json:"vocabulary"`
+	Content    int      `json:"content"`
+	Topic      string   `json:"topic"`
+	Covered    []string `json:"covered"`
+	Missed     []string `json:"missed"`
+	Tips       []string `json:"tips"`
+}
+
+// SessionScoreOutput is the end-of-interview report.
+type SessionScoreOutput struct {
+	Score      int                  `json:"score"`
+	Fluency    int                  `json:"fluency"`
+	Grammar    int                  `json:"grammar"`
+	Vocabulary int                  `json:"vocabulary"`
+	Content    int                  `json:"content"`
+	Answered   int                  `json:"answered"`
+	Answers    []SessionAnswerScore `json:"answers"`
+}
+
+// SessionOutput is one row of the practice activity calendar.
+type SessionOutput struct {
+	ID        string `json:"id"`
+	JobTitle  string `json:"job_title"`
+	Answers   int    `json:"answers"`
+	Score     int    `json:"score"`
+	CreatedAt string `json:"created_at"`
+}
+
 // PrepInput requests a prep pack for a specific job.
 type PrepInput struct {
 	JobID string `json:"job_id" binding:"required,uuid"`

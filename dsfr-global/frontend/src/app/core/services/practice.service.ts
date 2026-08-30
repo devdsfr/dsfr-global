@@ -3,7 +3,7 @@ import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 
 import { environment } from '../../../environments/environment';
-import { AISettings, Debrief, Evaluation, Interview, InterviewFocus, Job, JobInput, PrepPack, Resume, Scores, Topic, TopicScore } from '../models/practice.model';
+import { AISettings, Debrief, Evaluation, Interview, InterviewFocus, Job, JobInput, PracticeSession, PrepPack, Resume, Scores, SessionScore, Topic, TopicScore } from '../models/practice.model';
 
 /** Résumé, target job and AI interview scripts. */
 @Injectable({ providedIn: 'root' })
@@ -55,6 +55,18 @@ export class PracticeService {
 
   evaluateAnswer(payload: { interview_id: string; turn_index: number; transcript: string }): Observable<Evaluation> {
     return this.http.post<Evaluation>(`${this.api}/interview/evaluate`, payload);
+  }
+
+  /** Grades a whole session at once, so nothing interrupts the interview. */
+  scoreSession(payload: {
+    interview_id: string;
+    answers: { turn_index: number; transcript: string }[];
+  }): Observable<SessionScore> {
+    return this.http.post<SessionScore>(`${this.api}/interview/score-session`, payload);
+  }
+
+  listSessions(): Observable<PracticeSession[]> {
+    return this.http.get<PracticeSession[]>(`${this.api}/sessions`);
   }
 
   getPrepPack(jobId: string): Observable<PrepPack> {

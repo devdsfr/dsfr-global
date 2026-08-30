@@ -109,6 +109,39 @@ export interface PrepPack {
   created_at: string;
 }
 
+export interface SessionAnswerScore {
+  turn_index: number;
+  question: string;
+  transcript: string;
+  score: number;
+  fluency: number;
+  grammar: number;
+  vocabulary: number;
+  content: number;
+  topic: string;
+  covered: string[];
+  missed: string[];
+  tips: string[];
+}
+
+export interface SessionScore {
+  score: number;
+  fluency: number;
+  grammar: number;
+  vocabulary: number;
+  content: number;
+  answered: number;
+  answers: SessionAnswerScore[];
+}
+
+export interface PracticeSession {
+  id: string;
+  job_title: string;
+  answers: number;
+  score: number;
+  created_at: string;
+}
+
 export interface DebriefQuestion {
   question: string;
   your_answer: string;

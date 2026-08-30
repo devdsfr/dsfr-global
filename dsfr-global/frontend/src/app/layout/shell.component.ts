@@ -76,7 +76,10 @@ interface NavItem {
         </div>
       </aside>
 
-      <main id="main" tabindex="-1" class="flex-1 overflow-y-auto focus:outline-none">
+      <!-- min-w-0: a flex child defaults to min-width:auto, so wide content
+           (long job titles, transcripts) pushes the layout past the viewport
+           and shifts the sidebar off-screen. -->
+      <main id="main" tabindex="-1" class="min-w-0 flex-1 overflow-x-hidden overflow-y-auto focus:outline-none">
         <router-outlet />
       </main>
     </div>

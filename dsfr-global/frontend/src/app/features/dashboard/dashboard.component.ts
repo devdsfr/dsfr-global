@@ -3,14 +3,15 @@ import { RouterLink } from '@angular/router';
 import { forkJoin, of } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 
-import { Job, Scores } from '../../core/models/practice.model';
+import { Job, PracticeSession, Scores } from '../../core/models/practice.model';
 import { AuthService } from '../../core/services/auth.service';
 import { PracticeService } from '../../core/services/practice.service';
+import { ActivityCalendarComponent } from './activity-calendar.component';
 
 @Component({
   selector: 'app-dashboard',
   standalone: true,
-  imports: [RouterLink],
+  imports: [ActivityCalendarComponent, RouterLink],
   template: `
     <div class="p-4 sm:p-8 max-w-6xl mx-auto">
       <header class="mb-8">
@@ -61,6 +62,10 @@ import { PracticeService } from '../../core/services/practice.service';
         }
       }
 
+      <section class="card mb-8">
+        <app-activity-calendar [sessions]="sessions()" />
+      </section>
+
       <section class="card">
         <div class="flex items-center justify-between mb-3">
           <h2 class="font-semibold">Target jobs</h2>
@@ -93,6 +98,7 @@ export class DashboardComponent implements OnInit {
 
   readonly scores = signal<Scores | null>(null);
   readonly jobs = signal<Job[]>([]);
+  readonly sessions = signal<PracticeSession[]>([]);
 
   /**
    * Derived from AuthService's reactive `user` signal instead of a locally
@@ -117,8 +123,10 @@ export class DashboardComponent implements OnInit {
     }
     forkJoin({
       scores: this.practice.getScores().pipe(catchError(() => of(null))),
-      jobs: this.practice.listJobs().pipe(catchError(() => of([] as Job[])))
-    }).subscribe(({ scores, jobs }) => {
+      jobs: this.practice.listJobs().pipe(catchError(() => of([] as Job[]))),
+      sessions: this.practice.listSessions().pipe(catchError(() => of([] as PracticeSession[])))
+    }).subscribe(({ scores, jobs, sessions }) => {
+      this.sessions.set(sessions);
       this.scores.set(scores);
       this.jobs.set(jobs);
     });

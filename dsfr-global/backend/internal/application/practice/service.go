@@ -306,22 +306,22 @@ func (s *Service) EvaluateAnswer(ctx context.Context, userID uuid.UUID, in Evalu
 	}
 	turn := interview.Turns[in.TurnIndex]
 
-	llm, err := s.completerFor(ctx, userID)
-	if err != nil {
-		return nil, err
+	// Graded offline. One LLM call per answer meant ~7s of waiting eight times
+	// per session and burned provider free-tier request limits; the local engine
+	// returns in microseconds, costs nothing, and never rate-limits.
+	local := scoreAnswerLocally(turn.Answer, in.Transcript, turn.ExpectedPoints)
+
+	out := &EvaluationOutput{
+		Score:      local.Score,
+		Fluency:    local.Fluency,
+		Grammar:    local.Grammar,
+		Vocabulary: local.Vocabulary,
+		Content:    local.Content,
+		Covered:    local.Covered,
+		Missed:     local.Missed,
+		Tips:       local.Tips,
+		Topic:      turn.Topic,
 	}
-	prompt := buildEvaluationPrompt(turn, in.Transcript)
-	text, err := llm.Complete(ctx, prompt, 1400)
-	if err != nil {
-		return nil, err
-	}
-	out, err := parseEvaluation(text)
-	if err != nil {
-		return nil, err
-	}
-	// The topic is authoritative from the stored turn, never from the model's
-	// echo of it, so the breakdown can't be skewed by a bad completion.
-	out.Topic = turn.Topic
 	if len(turn.ExpectedPoints) == 0 {
 		// Pre-topic script: there was no rubric to grade against, so don't
 		// report a content score the UI would render as a genuine zero.
@@ -339,6 +339,101 @@ func (s *Service) EvaluateAnswer(ctx context.Context, userID uuid.UUID, in Evalu
 		return nil, err
 	}
 	return out, nil
+}
+
+// ScoreSession grades every answer of a finished interview in one pass and
+// records the session. Nothing is graded while the candidate is still talking:
+// they answer, press next, answer again, and get one report at the end.
+func (s *Service) ScoreSession(ctx context.Context, userID uuid.UUID, in ScoreSessionInput) (*SessionScoreOutput, error) {
+	interviewID, err := uuid.Parse(in.InterviewID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid interview id")
+	}
+	interview, err := s.repo.FindLatestInterviewByUser(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	out := &SessionScoreOutput{Answers: []SessionAnswerScore{}}
+	var sumScore, sumFluency, sumGrammar, sumVocab, sumContent, contentGraded int
+
+	for _, answer := range in.Answers {
+		if answer.TurnIndex < 0 || answer.TurnIndex >= len(interview.Turns) {
+			continue
+		}
+		if strings.TrimSpace(answer.Transcript) == "" {
+			continue
+		}
+		turn := interview.Turns[answer.TurnIndex]
+		local := scoreAnswerLocally(turn.Answer, answer.Transcript, turn.ExpectedPoints)
+
+		graded := SessionAnswerScore{
+			TurnIndex: answer.TurnIndex, Question: turn.Interviewer,
+			Transcript: strings.TrimSpace(answer.Transcript),
+			Score:      local.Score, Fluency: local.Fluency, Grammar: local.Grammar,
+			Vocabulary: local.Vocabulary, Content: local.Content, Topic: turn.Topic,
+			Covered: local.Covered, Missed: local.Missed, Tips: local.Tips,
+		}
+		if len(turn.ExpectedPoints) == 0 {
+			// No rubric on this turn: a zero would read as "covered nothing".
+			graded.Content = 0
+			graded.Covered = nil
+			graded.Missed = nil
+		} else {
+			sumContent += graded.Content
+			contentGraded++
+		}
+
+		eval := &career.AnswerEvaluation{ID: uuid.New(), UserID: userID, InterviewID: interviewID,
+			TurnIndex: answer.TurnIndex, Transcript: graded.Transcript, Score: graded.Score,
+			Fluency: graded.Fluency, Grammar: graded.Grammar, Vocabulary: graded.Vocabulary,
+			Content: graded.Content, Topic: turn.Topic, Covered: graded.Covered,
+			Missed: graded.Missed, Tips: graded.Tips, CreatedAt: time.Now().UTC()}
+		if err := s.repo.SaveEvaluation(ctx, eval); err != nil {
+			return nil, err
+		}
+
+		sumScore += graded.Score
+		sumFluency += graded.Fluency
+		sumGrammar += graded.Grammar
+		sumVocab += graded.Vocabulary
+		out.Answers = append(out.Answers, graded)
+	}
+
+	out.Answered = len(out.Answers)
+	if out.Answered == 0 {
+		return nil, fmt.Errorf("no answers were recorded in this session")
+	}
+	out.Score = sumScore / out.Answered
+	out.Fluency = sumFluency / out.Answered
+	out.Grammar = sumGrammar / out.Answered
+	out.Vocabulary = sumVocab / out.Answered
+	if contentGraded > 0 {
+		out.Content = sumContent / contentGraded
+	}
+
+	// Record the session so the activity calendar can show what was trained.
+	jobTitle := ""
+	if interview.JobID != uuid.Nil {
+		if job, jobErr := s.repo.FindJobByID(ctx, userID, interview.JobID); jobErr == nil {
+			jobTitle = job.Title
+			if job.Company != "" {
+				jobTitle += " · " + job.Company
+			}
+		}
+	}
+	session := &career.PracticeSession{ID: uuid.New(), UserID: userID,
+		InterviewID: interviewID, JobID: interview.JobID, JobTitle: jobTitle,
+		Answers: out.Answered, Score: out.Score, CreatedAt: time.Now().UTC()}
+	if err := s.repo.SaveSession(ctx, session); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// ListSessions powers the practice activity calendar.
+func (s *Service) ListSessions(ctx context.Context, userID uuid.UUID) ([]career.PracticeSession, error) {
+	return s.repo.ListSessionsByUser(ctx, userID, 400)
 }
 
 // TopicBreakdown returns per-topic averages for the practice history.

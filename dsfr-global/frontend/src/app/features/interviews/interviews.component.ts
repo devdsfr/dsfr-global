@@ -8,6 +8,7 @@ import {
   Interview,
   InterviewFocus,
   Job,
+  SessionScore,
   Topic,
   TopicScore
 } from '../../core/models/practice.model';
@@ -247,13 +248,11 @@ interface SpeechRecognitionLike extends EventTarget {
               <p class="text-sm text-gray-400 italic">Press record and read the teleprompter out loud.</p>
             }
 
-            <div aria-live="polite" class="min-h-[1.5rem]">
-              @if (evaluating()) {
-                <p class="text-sm text-gray-300">Scoring your answer…</p>
-              } @else if (transcript() && (!evaluation() || transcriptEdited())) {
-                <button class="btn-primary text-sm" (click)="evaluate()">
-                  {{ evaluation() ? '↻ Re-score' : '✓ Get my score' }}
-                </button>
+            <div aria-live="polite" class="min-h-[1.25rem]">
+              @if (transcript()) {
+                <p class="text-sm text-emerald-300/90">
+                  Answer saved. Press next — you get one score at the end.
+                </p>
               }
               @if (evalError()) {
                 <p class="text-red-400 text-sm" role="alert">{{ evalError() }}</p>
@@ -340,9 +339,66 @@ interface SpeechRecognitionLike extends EventTarget {
         }
 
         @case ('finished') {
+          @if (scoring()) {
+            <div class="card text-center py-16" aria-live="polite">
+              <div class="inline-block h-8 w-8 border-2 border-brand border-t-transparent rounded-full motion-safe:animate-spin mb-4"></div>
+              <p class="font-semibold">Scoring your interview…</p>
+            </div>
+          } @else if (sessionReport(); as report) {
+            <div class="card mb-6 text-center py-10">
+              <p class="text-4xl mb-3">🎉</p>
+              <h1 class="text-2xl font-bold mb-1">Session complete!</h1>
+              <p class="text-gray-400 text-sm mb-6">
+                {{ report.answered }} {{ report.answered === 1 ? 'answer' : 'answers' }} recorded.
+              </p>
+              <p class="text-5xl font-bold">{{ report.score }}<span class="text-xl text-gray-400">/100</span></p>
+              <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 max-w-lg mx-auto mt-8 text-left">
+                @for (m of reportMetrics(report); track m.label) {
+                  <div>
+                    <p class="text-xs text-gray-400 mb-1">{{ m.label }}</p>
+                    <div class="h-1.5 bg-surface-border rounded-full overflow-hidden">
+                      <div class="h-full rounded-full"
+                           [class]="m.label === 'Content' ? 'bg-amber-400' : 'bg-brand'"
+                           [style.width.%]="m.value"></div>
+                    </div>
+                    <p class="text-xs text-gray-400 mt-1">{{ m.value }}</p>
+                  </div>
+                }
+              </div>
+            </div>
+
+            @for (answer of report.answers; track answer.turn_index) {
+              <div class="card mb-3">
+                <div class="flex items-start justify-between gap-3 mb-2">
+                  <p class="text-sm font-medium">{{ answer.turn_index + 1 }}. {{ answer.question }}</p>
+                  <span class="shrink-0 text-sm font-bold"
+                        [class]="answer.score >= 70 ? 'text-emerald-400'
+                                 : answer.score >= 50 ? 'text-amber-400' : 'text-red-400'">
+                    {{ answer.score }}
+                  </span>
+                </div>
+                @if (answer.missed.length) {
+                  <p class="text-xs text-gray-400 mb-1">Missed: {{ answer.missed.join(', ') }}</p>
+                }
+                @for (tip of answer.tips; track tip) {
+                  <p class="text-sm text-gray-300">• {{ tip }}</p>
+                }
+              </div>
+            }
+
+            <div class="flex flex-wrap justify-center gap-3 mt-6">
+              <button class="btn-primary" (click)="startPractice()">↻ Practice again</button>
+              <button class="btn-primary bg-surface-border hover:bg-surface-border/70" (click)="generate()">
+                ✨ New interview
+              </button>
+            </div>
+          } @else {
           <div class="card text-center py-14">
             <p class="text-4xl mb-4">🎉</p>
             <h1 class="text-2xl font-bold mb-2">Session complete!</h1>
+            @if (evalError()) {
+              <p class="text-red-400 text-sm mb-6" role="alert">{{ evalError() }}</p>
+            }
             @if (sessionScores().length) {
               <p class="text-gray-400 text-sm mb-6">
                 You scored {{ sessionAverage() }}/100 across {{ sessionScores().length }} evaluated
@@ -393,6 +449,7 @@ interface SpeechRecognitionLike extends EventTarget {
               </button>
             </div>
           </div>
+          }
         }
       }
     </div>
@@ -446,6 +503,10 @@ export class InterviewsComponent implements OnInit, OnDestroy {
   private autoScoreOnStop = false;
 
   readonly transcriptEdited = signal(false);
+  /** Answers banked during the session, graded together at the end. */
+  readonly answers = signal<{ turn_index: number; transcript: string }[]>([]);
+  readonly sessionReport = signal<SessionScore | null>(null);
+  readonly scoring = signal(false);
 
   metrics(ev: Evaluation) {
     const base = [
@@ -482,6 +543,15 @@ export class InterviewsComponent implements OnInit, OnDestroy {
 
   setFocus(value: InterviewFocus): void {
     this.focus.set(value);
+  }
+
+  reportMetrics(report: SessionScore) {
+    const base = [
+      { label: 'Fluency', value: report.fluency },
+      { label: 'Grammar', value: report.grammar },
+      { label: 'Vocabulary', value: report.vocabulary }
+    ];
+    return report.content > 0 ? [...base, { label: 'Content', value: report.content }] : base;
   }
 
   sessionAverage(): number {
@@ -563,6 +633,8 @@ export class InterviewsComponent implements OnInit, OnDestroy {
   startPractice(): void {
     this.current.set(0);
     this.sessionScores.set([]);
+    this.answers.set([]);
+    this.sessionReport.set(null);
     this.resetAnswerState();
     this.stage.set('practicing');
     this.speak();
@@ -571,9 +643,9 @@ export class InterviewsComponent implements OnInit, OnDestroy {
   next(): void {
     speechSynthesis.cancel();
     this.stopRecognition(false);
+    this.bankAnswer();
     if (this.current() === this.interview()!.turns.length - 1) {
-      this.stage.set('finished');
-      this.loadBreakdown();
+      this.finishSession();
       return;
     }
     this.current.update((i) => i + 1);
@@ -585,9 +657,41 @@ export class InterviewsComponent implements OnInit, OnDestroy {
     if (this.current() === 0) return;
     speechSynthesis.cancel();
     this.stopRecognition(false);
+    this.bankAnswer();
     this.current.update((i) => i - 1);
-    this.resetAnswerState();
+    this.restoreAnswerState();
     this.speak();
+  }
+
+  /** Brings back an answer already recorded for this question, if any. */
+  private restoreAnswerState(): void {
+    const saved = this.answers().find((a) => a.turn_index === this.current());
+    this.transcript.set(saved?.transcript ?? '');
+    this.evalError.set(null);
+    this.transcriptEdited.set(false);
+  }
+
+  /** Ends the interview and grades everything in a single request. */
+  private finishSession(): void {
+    const script = this.interview();
+    const recorded = this.answers();
+    this.stage.set('finished');
+    this.loadBreakdown();
+    if (!script || recorded.length === 0) return;
+
+    this.scoring.set(true);
+    this.evalError.set(null);
+    this.practice.scoreSession({ interview_id: script.id, answers: recorded }).subscribe({
+      next: (report) => {
+        this.scoring.set(false);
+        this.sessionReport.set(report);
+        this.loadBreakdown();
+      },
+      error: (err) => {
+        this.scoring.set(false);
+        this.evalError.set(err.error?.error ?? 'Could not score this session. Try again.');
+      }
+    });
   }
 
   endSession(): void {
@@ -678,13 +782,11 @@ export class InterviewsComponent implements OnInit, OnDestroy {
       this.recording.set(false);
       this.evalError.set('Microphone error. Check that the browser has permission to use it.');
     };
-    // Stopping the mic is the signal that the answer is finished, so score it
-    // right away instead of making the user click a second button.
+    // Nothing is graded mid-interview: the answer is just banked and the
+    // candidate moves on. The whole session is scored once, at the end.
     rec.onend = () => {
       this.recording.set(false);
-      if (this.autoScoreOnStop && this.transcript().trim() && !this.evaluating()) {
-        this.evaluate();
-      }
+      this.bankAnswer();
     };
 
     this.recognition = rec;
@@ -704,10 +806,22 @@ export class InterviewsComponent implements OnInit, OnDestroy {
     this.recording.set(false);
   }
 
-  /** Manual re-score after the user corrects a mis-transcribed word. */
   onTranscriptEdit(value: string): void {
     this.transcript.set(value);
     this.transcriptEdited.set(true);
+    this.bankAnswer();
+  }
+
+  /** Stores the current answer against its question, replacing any earlier take. */
+  private bankAnswer(): void {
+    const text = this.transcript().trim();
+    if (!text) return;
+    const index = this.current();
+    this.answers.update((list) => {
+      const next = list.filter((a) => a.turn_index !== index);
+      next.push({ turn_index: index, transcript: text });
+      return next;
+    });
   }
 
   evaluate(): void {

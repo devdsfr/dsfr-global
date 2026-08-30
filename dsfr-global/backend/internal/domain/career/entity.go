@@ -101,6 +101,20 @@ type Scores struct {
 	TechnicalCommunication int `json:"technical_communication"`
 	AnswersPracticed       int `json:"answers_practiced"`
 	RealInterviews         int `json:"real_interviews"`
+	SessionsPracticed      int `json:"sessions_practiced"`
+}
+
+// PracticeSession is one finished mock interview, kept so the activity
+// calendar can show what was trained on a given day.
+type PracticeSession struct {
+	ID          uuid.UUID
+	UserID      uuid.UUID
+	InterviewID uuid.UUID
+	JobID       uuid.UUID
+	JobTitle    string
+	Answers     int
+	Score       int
+	CreatedAt   time.Time
 }
 
 // PrepQuestion is a likely interview question with a model answer grounded in

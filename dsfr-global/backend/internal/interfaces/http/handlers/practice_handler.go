@@ -4,6 +4,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -170,6 +171,49 @@ func (h *PracticeHandler) EvaluateAnswer(c *gin.Context) {
 		slog.Error("answer evaluation failed", "user", userID, "error", err)
 		respondCareerError(c, err)
 		return
+	}
+	c.JSON(http.StatusOK, out)
+}
+
+// ScoreSession godoc: POST /api/v1/interview/score-session
+func (h *PracticeHandler) ScoreSession(c *gin.Context) {
+	userID, ok := currentUserID(c)
+	if !ok {
+		return
+	}
+	var in practice.ScoreSessionInput
+	if !bind(c, &in) {
+		return
+	}
+	out, err := h.svc.ScoreSession(c.Request.Context(), userID, in)
+	if err != nil {
+		slog.Error("session scoring failed", "user", userID, "error", err)
+		respondCareerError(c, err)
+		return
+	}
+	c.JSON(http.StatusCreated, out)
+}
+
+// ListSessions godoc: GET /api/v1/sessions
+func (h *PracticeHandler) ListSessions(c *gin.Context) {
+	userID, ok := currentUserID(c)
+	if !ok {
+		return
+	}
+	list, err := h.svc.ListSessions(c.Request.Context(), userID)
+	if err != nil {
+		respondCareerError(c, err)
+		return
+	}
+	out := make([]practice.SessionOutput, 0, len(list))
+	for _, s := range list {
+		out = append(out, practice.SessionOutput{
+			ID:        s.ID.String(),
+			JobTitle:  s.JobTitle,
+			Answers:   s.Answers,
+			Score:     s.Score,
+			CreatedAt: s.CreatedAt.Format(time.RFC3339),
+		})
 	}
 	c.JSON(http.StatusOK, out)
 }

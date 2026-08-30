@@ -138,6 +138,22 @@ CREATE TABLE IF NOT EXISTS debriefs (
 
 CREATE INDEX IF NOT EXISTS idx_debriefs_user_created ON debriefs (user_id, created_at DESC);
 
+-- One row per finished practice session. Answer rows alone cannot answer
+-- "how many times did I train today, and for which job", which is what the
+-- activity calendar shows.
+CREATE TABLE IF NOT EXISTS practice_sessions (
+    id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id      UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    interview_id UUID,
+    job_id       UUID,
+    job_title    VARCHAR(200) NOT NULL DEFAULT '',
+    answers      INT NOT NULL DEFAULT 0,
+    score        INT NOT NULL DEFAULT 0,
+    created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_sessions_user_created ON practice_sessions (user_id, created_at DESC);
+
 -- Per-user AI provider configuration (BYOK). api_key_enc is AES-GCM encrypted.
 CREATE TABLE IF NOT EXISTS ai_settings (
     user_id     UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
