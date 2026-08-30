@@ -344,7 +344,8 @@ interface SpeechRecognitionLike extends EventTarget {
               <div class="inline-block h-8 w-8 border-2 border-brand border-t-transparent rounded-full motion-safe:animate-spin mb-4"></div>
               <p class="font-semibold">Scoring your interview…</p>
             </div>
-          } @else if (sessionReport(); as report) {
+          } @else if (sessionReport()) {
+            @if (sessionReport(); as report) {
             <div class="card mb-6 text-center py-10">
               <p class="text-4xl mb-3">🎉</p>
               <h1 class="text-2xl font-bold mb-1">Session complete!</h1>
@@ -392,6 +393,7 @@ interface SpeechRecognitionLike extends EventTarget {
                 ✨ New interview
               </button>
             </div>
+            }
           } @else {
           <div class="card text-center py-14">
             <p class="text-4xl mb-4">🎉</p>
