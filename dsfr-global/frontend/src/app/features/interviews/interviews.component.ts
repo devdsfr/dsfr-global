@@ -8,6 +8,7 @@ import {
   Interview,
   InterviewFocus,
   Job,
+  SessionAnswerScore,
   SessionScore,
   Topic,
   TopicScore
@@ -368,21 +369,70 @@ interface SpeechRecognitionLike extends EventTarget {
               </div>
             </div>
 
+            <p class="text-xs uppercase tracking-wider text-gray-400 mb-3">Answer by answer</p>
             @for (answer of report.answers; track answer.turn_index) {
               <div class="card mb-3">
-                <div class="flex items-start justify-between gap-3 mb-2">
-                  <p class="text-sm font-medium">{{ answer.turn_index + 1 }}. {{ answer.question }}</p>
-                  <span class="shrink-0 text-sm font-bold"
+                <div class="flex items-start justify-between gap-3 mb-3">
+                  <p class="text-sm font-medium">
+                    {{ answer.turn_index + 1 }}. {{ answer.question }}
+                    @if (answer.topic) {
+                      <span class="ml-1 text-xs px-2 py-0.5 rounded-full bg-brand/15 text-brand border border-brand/30">
+                        {{ topicLabel(answer.topic) }}
+                      </span>
+                    }
+                  </p>
+                  <span class="shrink-0 text-lg font-bold"
                         [class]="answer.score >= 70 ? 'text-emerald-400'
                                  : answer.score >= 50 ? 'text-amber-400' : 'text-red-400'">
                     {{ answer.score }}
                   </span>
                 </div>
-                @if (answer.missed.length) {
-                  <p class="text-xs text-gray-400 mb-1">Missed: {{ answer.missed.join(', ') }}</p>
+
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
+                  @for (m of answerMetrics(answer); track m.label) {
+                    <div>
+                      <p class="text-xs text-gray-400 mb-1">{{ m.label }}</p>
+                      <div class="h-1 bg-surface-border rounded-full overflow-hidden">
+                        <div class="h-full rounded-full"
+                             [class]="m.label === 'Content' ? 'bg-amber-400' : 'bg-brand'"
+                             [style.width.%]="m.value"></div>
+                      </div>
+                      <p class="text-xs text-gray-400 mt-1">{{ m.value }}</p>
+                    </div>
+                  }
+                </div>
+
+                @if (answer.transcript) {
+                  <p class="text-xs uppercase tracking-wider text-gray-400 mb-1">You said</p>
+                  <p class="text-sm text-gray-300 bg-black/30 rounded-lg p-3 mb-3">{{ answer.transcript }}</p>
                 }
-                @for (tip of answer.tips; track tip) {
-                  <p class="text-sm text-gray-300">• {{ tip }}</p>
+
+                @if (answer.covered?.length || answer.missed?.length) {
+                  <div class="grid sm:grid-cols-2 gap-4 mb-3">
+                    @if (answer.covered?.length) {
+                      <div>
+                        <p class="text-xs uppercase tracking-wider text-gray-400 mb-1">Covered</p>
+                        @for (point of answer.covered; track point) {
+                          <p class="text-sm text-emerald-300/90">✓ {{ point }}</p>
+                        }
+                      </div>
+                    }
+                    @if (answer.missed?.length) {
+                      <div>
+                        <p class="text-xs uppercase tracking-wider text-gray-400 mb-1">Missed</p>
+                        @for (point of answer.missed; track point) {
+                          <p class="text-sm text-amber-300/90">○ {{ point }}</p>
+                        }
+                      </div>
+                    }
+                  </div>
+                }
+
+                @if (answer.tips?.length) {
+                  <p class="text-xs uppercase tracking-wider text-gray-400 mb-1">Tips</p>
+                  @for (tip of answer.tips; track tip) {
+                    <p class="text-sm text-gray-300">• {{ tip }}</p>
+                  }
                 }
               </div>
             }
@@ -545,6 +595,17 @@ export class InterviewsComponent implements OnInit, OnDestroy {
 
   setFocus(value: InterviewFocus): void {
     this.focus.set(value);
+  }
+
+  answerMetrics(answer: SessionAnswerScore) {
+    const base = [
+      { label: 'Fluency', value: answer.fluency },
+      { label: 'Grammar', value: answer.grammar },
+      { label: 'Vocabulary', value: answer.vocabulary }
+    ];
+    // Content only when the turn carried a rubric; a 0 would read as "you
+    // covered nothing" instead of "nothing was graded".
+    return answer.content > 0 ? [...base, { label: 'Content', value: answer.content }] : base;
   }
 
   reportMetrics(report: SessionScore) {

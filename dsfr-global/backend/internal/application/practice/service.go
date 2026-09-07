@@ -376,9 +376,11 @@ func (s *Service) ScoreSession(ctx context.Context, userID uuid.UUID, in ScoreSe
 		}
 		if len(turn.ExpectedPoints) == 0 {
 			// No rubric on this turn: a zero would read as "covered nothing".
+			// Empty slices, never nil — a nil slice marshals to JSON null and
+			// the template's `.length` access would throw on it.
 			graded.Content = 0
-			graded.Covered = nil
-			graded.Missed = nil
+			graded.Covered = []string{}
+			graded.Missed = []string{}
 		} else {
 			sumContent += graded.Content
 			contentGraded++
