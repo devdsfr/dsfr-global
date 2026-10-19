@@ -40,6 +40,9 @@ type Repository interface {
 	// scripts, so a new script can be told not to repeat them.
 	RecentQuestions(ctx context.Context, userID uuid.UUID, scripts int) ([]string, error)
 
+	SetJobResume(ctx context.Context, userID, jobID uuid.UUID, text string, score float64) error
+	SetJobScore(ctx context.Context, userID, jobID uuid.UUID, score float64) error
+
 	SaveTailoring(ctx context.Context, t *Tailoring) error
 	ListTailorings(ctx context.Context, userID uuid.UUID, limit int) ([]Tailoring, error)
 

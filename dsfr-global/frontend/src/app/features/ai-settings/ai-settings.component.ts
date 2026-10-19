@@ -9,6 +9,8 @@ interface ProviderOption {
   keyHint: string;
   defaultModel: string;
   consoleUrl: string;
+  /** Short note shown under the key field. */
+  note: string;
 }
 
 @Component({
@@ -41,7 +43,7 @@ interface ProviderOption {
       <form [formGroup]="form" (ngSubmit)="save()" class="card space-y-5">
         <div>
           <label class="label">Provider</label>
-          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             @for (p of providers; track p.id) {
               <button type="button"
                       (click)="selectProvider(p.id)"
@@ -64,7 +66,7 @@ interface ProviderOption {
             Create one at
             <a [href]="selectedProvider().consoleUrl" target="_blank" rel="noopener"
                class="text-brand hover:text-brand-hover">{{ selectedProvider().consoleUrl }}</a>.
-            The provider account needs active credits/billing.
+            {{ selectedProvider().note }}
           </p>
         </div>
 
@@ -97,9 +99,16 @@ export class AiSettingsComponent implements OnInit {
   private readonly practice = inject(PracticeService);
 
   readonly providers: ProviderOption[] = [
-    { id: 'openai', label: 'OpenAI', keyHint: 'sk-...', defaultModel: 'gpt-4o-mini', consoleUrl: 'https://platform.openai.com' },
-    { id: 'anthropic', label: 'Anthropic', keyHint: 'sk-ant-...', defaultModel: 'claude-haiku-4.5', consoleUrl: 'https://console.anthropic.com' },
-    { id: 'gemini', label: 'Google Gemini', keyHint: 'AIza...', defaultModel: 'gemini-2.0-flash', consoleUrl: 'https://aistudio.google.com' }
+    { id: 'groq', label: 'Groq (free)', keyHint: 'gsk_...', defaultModel: 'openai/gpt-oss-120b',
+      consoleUrl: 'https://console.groq.com/keys',
+      note: 'Free plan, no card: ~1,000 requests/day. Text only — it cannot read screenshots or PDFs (paste the text instead).' },
+    { id: 'gemini', label: 'Google Gemini', keyHint: 'AIza...', defaultModel: 'gemini-flash-latest',
+      consoleUrl: 'https://aistudio.google.com',
+      note: 'Free plan is small (~20 requests/day per model). Reads screenshots and PDFs.' },
+    { id: 'openai', label: 'OpenAI', keyHint: 'sk-...', defaultModel: 'gpt-4o-mini',
+      consoleUrl: 'https://platform.openai.com', note: 'Paid — the account needs credits.' },
+    { id: 'anthropic', label: 'Anthropic', keyHint: 'sk-ant-...', defaultModel: 'claude-haiku-4.5',
+      consoleUrl: 'https://console.anthropic.com', note: 'Paid — the account needs credits.' }
   ];
 
   readonly saving = signal(false);
@@ -108,7 +117,7 @@ export class AiSettingsComponent implements OnInit {
   readonly current = signal<{ provider: string; masked_key: string; model: string } | null>(null);
 
   readonly form = this.fb.nonNullable.group({
-    provider: ['openai', [Validators.required]],
+    provider: ['groq', [Validators.required]],
     api_key: ['', [Validators.required, Validators.minLength(20)]],
     model: ['']
   });
@@ -131,6 +140,9 @@ export class AiSettingsComponent implements OnInit {
     if (!api_key) return null;
     if (provider === 'gemini' && !api_key.startsWith('AIza') && !api_key.startsWith('AQ.')) {
       return 'That does not look like a Gemini API key — create one in AI Studio → Get API key.';
+    }
+    if (provider === 'groq' && !api_key.startsWith('gsk_')) {
+      return 'Groq API keys start with "gsk_".';
     }
     if (provider === 'openai' && !api_key.startsWith('sk-')) {
       return 'OpenAI API keys start with "sk-".';

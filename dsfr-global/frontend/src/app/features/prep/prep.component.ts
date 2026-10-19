@@ -44,6 +44,14 @@ import { PracticeService } from '../../core/services/practice.service';
               {{ generating() ? 'Building…' : (pack() ? '↻ Regenerate' : '✨ Build prep pack') }}
             </button>
           </div>
+          @if (jobById(selectedJobId()); as sj) {
+            <p class="text-xs text-gray-400 mt-2">
+              📄 Resume: {{ sj.has_tailored_resume ? 'tailored for this job' : 'your base resume' }}
+              @if (sj.resume_score > 0) { ({{ sj.resume_score.toFixed(1) }}/10) }
+              · <a [routerLink]="['/tailor']" [queryParams]="{ job: sj.id }" class="text-brand hover:text-brand-hover">
+                {{ sj.has_tailored_resume ? 'Re-match' : 'Tailor it in Resume Match' }}</a>
+            </p>
+          }
           @if (error()) { <p class="text-red-400 text-sm mt-3">{{ error() }}</p> }
         </div>
 
@@ -128,6 +136,10 @@ export class PrepComponent implements OnInit {
   private readonly practice = inject(PracticeService);
 
   readonly jobs = signal<Job[]>([]);
+
+  jobById(id: string): Job | undefined {
+    return this.jobs().find((j) => j.id === id);
+  }
   readonly selectedJobId = signal<string>('');
   readonly pack = signal<PrepPack | null>(null);
   readonly loading = signal(true);

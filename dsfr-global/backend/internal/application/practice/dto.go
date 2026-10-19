@@ -73,7 +73,7 @@ type InterviewOutput struct {
 
 // AISettingsInput registers the user's own AI provider key.
 type AISettingsInput struct {
-	Provider string `json:"provider" binding:"required,oneof=openai anthropic gemini"`
+	Provider string `json:"provider" binding:"required,oneof=openai anthropic gemini groq"`
 	APIKey   string `json:"api_key" binding:"required,min=20"`
 	Model    string `json:"model" binding:"max=80"`
 }

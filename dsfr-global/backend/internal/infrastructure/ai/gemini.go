@@ -119,17 +119,59 @@ func (c *GeminiClient) Complete(ctx context.Context, prompt string, maxTokens in
 	if !c.Configured() {
 		return "", ErrNotConfigured
 	}
-	body, err := json.Marshal(geminiRequest{
+	payload := geminiRequest{
 		Contents:         []geminiContent{{Parts: []geminiPart{{Text: prompt}}}},
 		GenerationConfig: geminiGenConfig{MaxOutputTokens: geminiBudget(maxTokens)},
-	})
+	}
+	return c.generateWithFallback(ctx, payload)
+}
+
+// geminiFallbackModel has its own free-tier quota, separate from the main
+// flash model. Free keys get only ~20 requests/day per model, so when the main
+// model is exhausted the lite one keeps the app usable instead of failing
+// until the next day.
+const geminiFallbackModel = "gemini-flash-lite-latest"
+
+// isQuotaError recognises a provider rate/quota rejection.
+func isQuotaError(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "exceeded your current quota") ||
+		strings.Contains(msg, "resource_exhausted") ||
+		strings.Contains(msg, "rate limit")
+}
+
+// generateWithFallback calls the configured model and, if its quota is spent,
+// retries once on the lite model.
+func (c *GeminiClient) generateWithFallback(ctx context.Context, payload any) (string, error) {
+	text, err := c.generate(ctx, c.model, payload)
+	if isQuotaError(err) && c.model != geminiFallbackModel {
+		fallbackText, fallbackErr := c.generate(ctx, geminiFallbackModel, payload)
+		if fallbackErr == nil {
+			return fallbackText, nil
+		}
+		if isQuotaError(fallbackErr) {
+			return "", fmt.Errorf("gemini api: the daily free quota is used up on both %s and %s — "+
+				"try again tomorrow, enable billing on your Google AI key, or switch provider in AI Settings",
+				c.model, geminiFallbackModel)
+		}
+		return "", fallbackErr
+	}
+	return text, err
+}
+
+// generate performs one generateContent call against the given model.
+func (c *GeminiClient) generate(ctx context.Context, model string, payload any) (string, error) {
+	body, err := json.Marshal(payload)
 	if err != nil {
 		return "", err
 	}
 	// The API key goes in the X-goog-api-key header, never in the query string:
 	// URLs end up in server/proxy logs, which would leak the user's key.
 	url := fmt.Sprintf(
-		"https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent", c.model)
+		"https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent", model)
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
 		return "", err

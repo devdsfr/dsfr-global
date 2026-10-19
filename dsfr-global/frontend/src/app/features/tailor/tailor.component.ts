@@ -1,7 +1,7 @@
 import { DatePipe, DecimalPipe } from '@angular/common';
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import { forkJoin, of } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 
@@ -49,7 +49,7 @@ const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingm
                   <button type="button" role="tab" [attr.aria-selected]="jobSource() === s.value"
                           class="px-2.5 py-1 rounded-md transition-colors"
                           [class]="jobSource() === s.value ? 'bg-brand text-white' : 'text-gray-400 hover:text-gray-200'"
-                          (click)="jobSource.set(s.value)">{{ s.label }}</button>
+                          (click)="setJobSource(s.value)">{{ s.label }}</button>
                 }
               </div>
             </div>
@@ -59,7 +59,7 @@ const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingm
                 <select class="input" (change)="useSavedJob($any($event.target).value)" aria-label="Saved job">
                   <option value="">Choose a saved job…</option>
                   @for (j of savedJobs(); track j.id) {
-                    <option [value]="j.id">{{ j.title }}@if (j.company) { — {{ j.company }} }</option>
+                    <option [value]="j.id" [selected]="j.id === jobId()">{{ j.title }}@if (j.company) { — {{ j.company }} }</option>
                   }
                 </select>
               } @else {
@@ -88,6 +88,12 @@ const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingm
                         [(ngModel)]="jobText"
                         placeholder="Paste the full job description — requirements, stack, responsibilities…"></textarea>
             </div>
+            @if (linkedJob(); as lj) {
+              <p class="text-xs text-gray-400">
+                🔗 Results will be linked to <span class="text-gray-200">{{ lj.title }}</span> — its interviews,
+                prep pack and debrief will use the resume you end up with.
+              </p>
+            }
           </section>
 
           <!-- Resume -->
@@ -104,6 +110,12 @@ const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingm
               </div>
             </div>
 
+            @if (usingJobResume()) {
+              <p class="text-xs text-gray-400">
+                Using the resume already tailored for this job.
+                <button type="button" class="text-brand hover:text-brand-hover" (click)="setResumeSource('saved')">Use base resume instead</button>
+              </p>
+            }
             @if (resumeSource() === 'saved' && !hasSavedResume()) {
               <p class="text-sm text-gray-400">
                 No saved resume — <a routerLink="/resume" class="text-brand hover:text-brand-hover">add one</a>,
@@ -275,6 +287,38 @@ const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingm
             }
           </section>
 
+          @if (jobForResult(t); as lj) {
+            <section class="card mb-6 border-l-4 border-l-brand">
+              <p class="text-sm text-gray-200">
+                🔗 Linked to <span class="font-semibold">{{ lj.title }}</span>. Interviews, the prep pack and
+                debriefs for this job now use this resume.
+              </p>
+              <div class="flex flex-wrap gap-2 mt-3">
+                <button class="text-xs px-3 py-1.5 rounded-lg border border-surface-border hover:bg-white/5"
+                        (click)="saveEdits(lj.id, t.after.score)" [disabled]="linking()">
+                  {{ linkSaved() ? 'Saved ✓' : 'Save my edits to this job' }}
+                </button>
+                <a [routerLink]="['/interviews']" [queryParams]="{ job: lj.id }"
+                   class="text-xs px-3 py-1.5 rounded-lg border border-brand/50 text-brand hover:bg-brand/10">🎤 Practice this job</a>
+              </div>
+            </section>
+          } @else {
+            <section class="card mb-6 border-l-4 border-l-amber-500">
+              <p class="text-sm text-gray-200 mb-3">
+                Save this job to your Target Jobs so interviews, prep and debrief use this resume.
+              </p>
+              <div class="flex flex-wrap gap-2 items-center">
+                <input class="input flex-1 min-w-[14rem] text-sm" [(ngModel)]="newJobTitle"
+                       aria-label="Job title" placeholder="Job title, e.g. Senior Java Engineer" />
+                <button class="btn-primary text-sm" (click)="saveAsJob(t)"
+                        [disabled]="linking() || newJobTitle.trim().length < 2">
+                  {{ linking() ? 'Saving…' : 'Save as target job' }}
+                </button>
+              </div>
+            </section>
+          }
+          @if (error()) { <p class="text-red-400 text-sm mb-4" role="alert">{{ error() }}</p> }
+
           <section class="card mb-6">
             <div class="flex flex-wrap items-center justify-between gap-3 mb-3">
               <h2 class="font-semibold">Tailored resume</h2>
@@ -328,6 +372,7 @@ const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingm
 })
 export class TailorComponent implements OnInit {
   private readonly practice = inject(PracticeService);
+  private readonly route = inject(ActivatedRoute);
 
   readonly strongMatch = STRONG_MATCH;
   readonly docxMime = DOCX_MIME;
@@ -353,6 +398,13 @@ export class TailorComponent implements OnInit {
   readonly history = signal<Tailoring[]>([]);
   readonly error = signal<string | null>(null);
   readonly copied = signal(false);
+  /** The saved job this match is for; results are linked to it. */
+  readonly jobId = signal<string | null>(null);
+  readonly linkedJob = computed(() => this.savedJobs().find((j) => j.id === this.jobId()) ?? null);
+  readonly usingJobResume = signal(false);
+  readonly linking = signal(false);
+  readonly linkSaved = signal(false);
+  newJobTitle = '';
 
   private savedResume = '';
   readonly hasSavedResume = signal(false);
@@ -380,16 +432,43 @@ export class TailorComponent implements OnInit {
       } else {
         this.resumeSource.set('paste');
       }
+      // Opened from a job card (/tailor?job=<id>), or default to the active job.
+      const wanted = this.route.snapshot.queryParamMap.get('job');
+      const job = jobs.find((j) => j.id === wanted) ?? (wanted ? undefined : jobs.find((j) => j.is_active));
+      if (job) {
+        this.jobSource.set('saved');
+        this.useSavedJob(job.id);
+      }
     });
+  }
+
+  setJobSource(source: JobSource): void {
+    this.jobSource.set(source);
+    // A pasted or uploaded posting is a new job: don't link it to the selected one.
+    if (source !== 'saved') this.selectJob(null);
   }
 
   setResumeSource(source: ResumeSource): void {
     this.resumeSource.set(source);
+    this.usingJobResume.set(false);
     if (source === 'saved') this.resumeText = this.savedResume;
+  }
+
+  private selectJob(job: Job | null): void {
+    this.jobId.set(job?.id ?? null);
+    // Re-matching a job starts from the resume already tailored for it.
+    if (job?.has_tailored_resume && job.resume_text) {
+      this.resumeText = job.resume_text;
+      this.resumeSource.set('saved');
+      this.usingJobResume.set(true);
+    } else if (this.usingJobResume()) {
+      this.setResumeSource('saved');
+    }
   }
 
   useSavedJob(id: string): void {
     const job = this.savedJobs().find((j) => j.id === id);
+    this.selectJob(job ?? null);
     if (!job) return;
     this.jobTitle = job.company ? `${job.title} — ${job.company}` : job.title;
     const header = [job.title, job.company, job.seniority, job.stack ? `Stack: ${job.stack}` : '']
@@ -447,7 +526,7 @@ export class TailorComponent implements OnInit {
   analyze(): void {
     this.error.set(null);
     this.stage.set('analyzing');
-    this.practice.analyzeMatch(this.jobText.trim(), this.resumeText.trim()).subscribe({
+    this.practice.analyzeMatch(this.jobText.trim(), this.resumeText.trim(), this.jobId() ?? undefined).subscribe({
       next: (a) => {
         this.analysis.set(a);
         this.picks = this.buildPicks(a);
@@ -485,6 +564,7 @@ export class TailorComponent implements OnInit {
       .map((p) => ({ requirement: p.requirement, note: p.note.trim() }));
     this.practice
       .tailorResume({
+        ...(this.jobId() ? { job_id: this.jobId()! } : {}),
         job_title: this.jobTitle.trim(),
         job_text: this.jobText.trim(),
         resume_text: this.resumeText.trim(),
@@ -495,7 +575,10 @@ export class TailorComponent implements OnInit {
         next: (t) => {
           this.result.set(t);
           this.tailoredText = t.tailored_resume;
+          this.newJobTitle = this.jobTitle.trim();
+          this.linkSaved.set(false);
           this.history.update((list) => [t, ...list]);
+          this.refreshJobs();
           this.stage.set('tailored');
         },
         error: (err) => {
@@ -505,8 +588,64 @@ export class TailorComponent implements OnInit {
       });
   }
 
+  /** The saved job a tailoring is linked to, if it still exists. */
+  jobForResult(t: Tailoring): Job | null {
+    return this.savedJobs().find((j) => j.id === t.job_id) ?? null;
+  }
+
+  /** Stores the (possibly edited) tailored text as this job's resume. */
+  saveEdits(jobId: string, score: number): void {
+    this.linking.set(true);
+    this.practice.saveJobResume(jobId, this.tailoredText.trim(), score).subscribe({
+      next: () => {
+        this.linking.set(false);
+        this.linkSaved.set(true);
+        this.refreshJobs();
+      },
+      error: (err) => {
+        this.linking.set(false);
+        this.error.set(this.messageFor(err, 'Could not save the resume to this job.'));
+      }
+    });
+  }
+
+  /** Creates a target job from this posting and links the tailored resume to it. */
+  saveAsJob(t: Tailoring): void {
+    this.linking.set(true);
+    this.error.set(null);
+    this.practice
+      .createJob({ title: this.newJobTitle.trim(), company: '', seniority: '', stack: '', raw_text: t.job_text })
+      .subscribe({
+        next: (job) => {
+          this.practice.saveJobResume(job.id, this.tailoredText.trim(), t.after.score).subscribe({
+            next: () => {
+              this.linking.set(false);
+              this.jobId.set(job.id);
+              this.result.set({ ...t, job_id: job.id });
+              this.refreshJobs();
+            },
+            error: (err) => {
+              this.linking.set(false);
+              this.error.set(this.messageFor(err, 'Job saved, but linking the resume failed.'));
+            }
+          });
+        },
+        error: (err) => {
+          this.linking.set(false);
+          this.error.set(this.messageFor(err, 'Could not save the job.'));
+        }
+      });
+  }
+
+  private refreshJobs(): void {
+    this.practice.listJobs().subscribe({ next: (jobs) => this.savedJobs.set(jobs), error: () => void 0 });
+  }
+
   open(t: Tailoring): void {
     this.result.set(t);
+    this.jobId.set(t.job_id ?? null);
+    this.newJobTitle = t.job_title;
+    this.linkSaved.set(false);
     this.analysis.set(t.before);
     this.tailoredText = t.tailored_resume;
     this.jobTitle = t.job_title;

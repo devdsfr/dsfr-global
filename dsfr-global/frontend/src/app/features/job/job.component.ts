@@ -1,6 +1,7 @@
+import { DecimalPipe } from '@angular/common';
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { Router } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 
 import { Job } from '../../core/models/practice.model';
 import { PracticeService } from '../../core/services/practice.service';
@@ -8,7 +9,7 @@ import { PracticeService } from '../../core/services/practice.service';
 @Component({
   selector: 'app-job',
   standalone: true,
-  imports: [ReactiveFormsModule],
+  imports: [ReactiveFormsModule, RouterLink, DecimalPipe],
   template: `
     <div class="p-4 sm:p-8 max-w-5xl mx-auto">
       <header class="mb-8 flex items-start justify-between gap-4">
@@ -97,6 +98,37 @@ import { PracticeService } from '../../core/services/practice.service';
               @if (job.stack) {
                 <p class="text-xs text-gray-400 mb-4">{{ job.stack }}</p>
               }
+
+              <!-- The resume this job uses: tailored for it, or the base one -->
+              <div class="rounded-lg border border-surface-border bg-black/20 px-3 py-2.5 mb-3">
+                <div class="flex items-center justify-between gap-2">
+                  <p class="text-xs text-gray-300">
+                    <span aria-hidden="true">📄</span>
+                    {{ job.has_tailored_resume ? 'Tailored resume' : 'Base resume' }}
+                    @if (job.resume_score > 0) {
+                      <span class="ml-1 font-semibold" [class]="scoreColor(job.resume_score)">
+                        {{ job.resume_score | number: '1.1-1' }}/10
+                      </span>
+                    }
+                  </p>
+                  <div class="flex gap-3 text-xs">
+                    @if (job.has_tailored_resume) {
+                      <button class="text-gray-400 hover:text-gray-200" (click)="toggleResume(job.id)">
+                        {{ openResume() === job.id ? 'Hide' : 'View' }}
+                      </button>
+                      <button class="text-gray-400 hover:text-red-300" (click)="useBaseResume(job)">Use base</button>
+                    }
+                    <a [routerLink]="['/tailor']" [queryParams]="{ job: job.id }"
+                       class="text-brand hover:text-brand-hover">
+                      {{ job.has_tailored_resume ? 'Re-match' : 'Match resume' }}
+                    </a>
+                  </div>
+                </div>
+                @if (openResume() === job.id) {
+                  <pre class="mt-2 max-h-64 overflow-auto whitespace-pre-wrap text-xs text-gray-300 font-mono">{{ job.resume_text }}</pre>
+                }
+              </div>
+
               <div class="mt-auto flex flex-wrap gap-2 pt-2">
                 @if (!job.is_active) {
                   <button class="text-xs px-3 py-1.5 rounded-lg border border-surface-border hover:bg-white/5"
@@ -122,6 +154,23 @@ export class JobComponent implements OnInit {
   private readonly router = inject(Router);
 
   readonly jobs = signal<Job[]>([]);
+  readonly openResume = signal<string | null>(null);
+
+  toggleResume(id: string): void {
+    this.openResume.update((current) => (current === id ? null : id));
+  }
+
+  /** Unlinks the tailored version so this job goes back to the base resume. */
+  useBaseResume(job: Job): void {
+    if (!confirm(`Use your base resume for "${job.title}"? The tailored version stays in Resume Match history.`)) return;
+    this.practiceSvc.clearJobResume(job.id).subscribe({ next: () => this.load() });
+  }
+
+  scoreColor(score: number): string {
+    if (score >= 8) return 'text-emerald-400';
+    if (score >= 6) return 'text-amber-400';
+    return 'text-red-400';
+  }
   readonly loading = signal(true);
   readonly saving = signal(false);
   readonly showForm = signal(false);

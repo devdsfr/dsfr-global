@@ -29,8 +29,14 @@ type Job struct {
 	Stack     string // e.g. "Java, Spring Boot, AWS"
 	RawText   string // full posting text
 	IsActive  bool
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	// ResumeText is the résumé tailored for this job; empty means the base
+	// résumé is used. ResumeScore is the latest 0-10 match of whichever
+	// résumé applies.
+	ResumeText      string
+	ResumeScore     float64
+	ResumeUpdatedAt *time.Time
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
 }
 
 // InterviewTurn is one exchange: the interviewer's question and the model
@@ -133,6 +139,7 @@ type MatchAnalysis struct {
 type Tailoring struct {
 	ID             uuid.UUID
 	UserID         uuid.UUID
+	JobID          uuid.UUID // the target job this version belongs to
 	JobTitle       string
 	JobText        string
 	OriginalResume string

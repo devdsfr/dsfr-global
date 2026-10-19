@@ -79,20 +79,7 @@ func (c *GeminiClient) CompleteWithFile(ctx context.Context, prompt, mimeType st
 		{Text: prompt},
 	}
 	payload.GenerationConfig = geminiGenConfig{MaxOutputTokens: geminiBudget(maxTokens)}
-
-	url := fmt.Sprintf("https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent", c.model)
-	raw, err := postJSON(ctx, c.http, url, map[string]string{"X-goog-api-key": c.apiKey}, payload)
-	if err != nil {
-		return "", fmt.Errorf("gemini request: %w", err)
-	}
-	var parsed geminiResponse
-	if err := json.Unmarshal(raw, &parsed); err != nil {
-		return "", fmt.Errorf("gemini response parse: %w", err)
-	}
-	if parsed.Error != nil {
-		return "", fmt.Errorf("gemini api: %s", parsed.Error.Message)
-	}
-	return geminiAnswer(&parsed)
+	return c.generateWithFallback(ctx, payload)
 }
 
 // ------------------------------------------------------------- Anthropic ----
@@ -195,6 +182,10 @@ func (c *OpenAIClient) CompleteWithFile(ctx context.Context, prompt, mimeType st
 	if !c.Configured() {
 		return "", ErrNotConfigured
 	}
+	if !c.vision {
+		return "", fmt.Errorf("%s can't read screenshots or PDFs — paste the text instead, "+
+			"or switch to Gemini, OpenAI or Anthropic in AI Settings for file reading", c.name)
+	}
 	dataURL := "data:" + mimeType + ";base64," + base64.StdEncoding.EncodeToString(data)
 	var attachment openAIPart
 	switch {
@@ -213,20 +204,5 @@ func (c *OpenAIClient) CompleteWithFile(ctx context.Context, prompt, mimeType st
 	payload.Messages[0].Role = "user"
 	payload.Messages[0].Content = []openAIPart{{Type: "text", Text: prompt}, attachment}
 
-	raw, err := postJSON(ctx, c.http, "https://api.openai.com/v1/chat/completions",
-		map[string]string{"Authorization": "Bearer " + c.apiKey}, payload)
-	if err != nil {
-		return "", fmt.Errorf("openai request: %w", err)
-	}
-	var parsed openAIResponse
-	if err := json.Unmarshal(raw, &parsed); err != nil {
-		return "", fmt.Errorf("openai response parse: %w", err)
-	}
-	if parsed.Error != nil {
-		return "", fmt.Errorf("openai api: %s", parsed.Error.Message)
-	}
-	if len(parsed.Choices) == 0 {
-		return "", fmt.Errorf("openai api: empty response")
-	}
-	return parsed.Choices[0].Message.Content, nil
+	return c.send(ctx, payload)
 }

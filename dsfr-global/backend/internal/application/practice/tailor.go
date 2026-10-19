@@ -42,10 +42,18 @@ type ExtractInput struct {
 	Data     string `json:"data" binding:"required"` // base64, no data: prefix
 }
 
-// AnalyzeMatchInput compares a résumé with a job.
+// AnalyzeMatchInput compares a résumé with a job. When JobID is set the score
+// is recorded on that job.
 type AnalyzeMatchInput struct {
+	JobID      string `json:"job_id" binding:"omitempty,uuid"`
 	JobText    string `json:"job_text" binding:"required,min=40"`
 	ResumeText string `json:"resume_text" binding:"required,min=80"`
+}
+
+// JobResumeInput saves an edited résumé version on a job.
+type JobResumeInput struct {
+	ResumeText string  `json:"resume_text" binding:"required,min=80"`
+	Score      float64 `json:"score" binding:"min=0,max=10"`
 }
 
 // Confirmation is a requirement the candidate says they really have.
@@ -56,6 +64,7 @@ type Confirmation struct {
 
 // TailorInput rewrites the résumé for the job.
 type TailorInput struct {
+	JobID         string                `json:"job_id" binding:"omitempty,uuid"`
 	JobTitle      string                `json:"job_title" binding:"max=200"`
 	JobText       string                `json:"job_text" binding:"required,min=40"`
 	ResumeText    string                `json:"resume_text" binding:"required,min=80"`
@@ -110,11 +119,46 @@ func (s *Service) ExtractDocument(ctx context.Context, userID uuid.UUID, in Extr
 
 // AnalyzeMatch scores how well the résumé, as written, matches the job.
 func (s *Service) AnalyzeMatch(ctx context.Context, userID uuid.UUID, in AnalyzeMatchInput) (*career.MatchAnalysis, error) {
+	job, err := s.optionalJob(ctx, userID, in.JobID)
+	if err != nil {
+		return nil, err
+	}
 	llm, err := s.completerFor(ctx, userID)
 	if err != nil {
 		return nil, err
 	}
-	return analyzeMatch(ctx, llm, in.JobText, in.ResumeText)
+	analysis, err := analyzeMatch(ctx, llm, in.JobText, in.ResumeText)
+	if err != nil {
+		return nil, err
+	}
+	// Record the score on the job only when the résumé analysed is the one that
+	// job actually uses (the base one); a tailored version keeps its own score.
+	if job != nil && strings.TrimSpace(job.ResumeText) == "" {
+		_ = s.repo.SetJobScore(ctx, userID, job.ID, analysis.Score)
+	}
+	return analysis, nil
+}
+
+// optionalJob resolves an optional job id that must belong to the user.
+func (s *Service) optionalJob(ctx context.Context, userID uuid.UUID, rawID string) (*career.Job, error) {
+	if rawID == "" {
+		return nil, nil
+	}
+	id, err := uuid.Parse(rawID)
+	if err != nil {
+		return nil, fmt.Errorf("%w: invalid job id", ErrInvalidInput)
+	}
+	return s.repo.FindJobByID(ctx, userID, id)
+}
+
+// SaveJobResume stores an (edited) résumé version as the one used for a job.
+func (s *Service) SaveJobResume(ctx context.Context, userID, jobID uuid.UUID, in JobResumeInput) error {
+	return s.repo.SetJobResume(ctx, userID, jobID, strings.TrimSpace(in.ResumeText), in.Score)
+}
+
+// ClearJobResume makes a job fall back to the base résumé.
+func (s *Service) ClearJobResume(ctx context.Context, userID, jobID uuid.UUID) error {
+	return s.repo.SetJobResume(ctx, userID, jobID, "", 0)
 }
 
 func analyzeMatch(ctx context.Context, llm Completer, jobText, resumeText string) (*career.MatchAnalysis, error) {
@@ -132,6 +176,10 @@ func analyzeMatch(ctx context.Context, llm Completer, jobText, resumeText string
 
 // TailorResume rewrites the résumé for the job and re-scores the result.
 func (s *Service) TailorResume(ctx context.Context, userID uuid.UUID, in TailorInput) (*career.Tailoring, error) {
+	job, err := s.optionalJob(ctx, userID, in.JobID)
+	if err != nil {
+		return nil, err
+	}
 	llm, err := s.completerFor(ctx, userID)
 	if err != nil {
 		return nil, err
@@ -175,8 +223,21 @@ func (s *Service) TailorResume(ctx context.Context, userID uuid.UUID, in TailorI
 		TailoredResume: strings.TrimSpace(rewritten.Resume), After: *after,
 		Changes: rewritten.Changes, CreatedAt: time.Now().UTC(),
 	}
+	if job != nil {
+		t.JobID = job.ID
+		if t.JobTitle == "" {
+			t.JobTitle = job.Title
+		}
+	}
 	if err := s.repo.SaveTailoring(ctx, t); err != nil {
 		return nil, err
+	}
+	// Link it: from now on interviews, prep packs and debriefs for this job use
+	// this version instead of the base résumé.
+	if job != nil {
+		if err := s.repo.SetJobResume(ctx, userID, job.ID, t.TailoredResume, t.After.Score); err != nil {
+			return nil, err
+		}
 	}
 	return t, nil
 }

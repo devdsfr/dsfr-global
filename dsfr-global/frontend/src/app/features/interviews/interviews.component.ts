@@ -91,6 +91,14 @@ interface SpeechRecognitionLike extends EventTarget {
                   <option [value]="job.id">{{ job.title }}@if (job.company) { — {{ job.company }} }</option>
                 }
               </select>
+              @if (jobById(selectedJobId()); as sj) {
+                <p class="text-xs text-gray-400 mt-2">
+                  📄 Resume: {{ sj.has_tailored_resume ? 'tailored for this job' : 'your base resume' }}
+                  @if (sj.resume_score > 0) { ({{ sj.resume_score.toFixed(1) }}/10) }
+                  · <a [routerLink]="['/tailor']" [queryParams]="{ job: sj.id }" class="text-brand hover:text-brand-hover">
+                    {{ sj.has_tailored_resume ? 'Re-match' : 'Tailor it in Resume Match' }}</a>
+                </p>
+              }
             </div>
 
             <div>
@@ -536,6 +544,10 @@ export class InterviewsComponent implements OnInit, OnDestroy {
   readonly stage = signal<Stage>('loading');
   readonly interview = signal<Interview | null>(null);
   readonly jobs = signal<Job[]>([]);
+
+  jobById(id: string): Job | undefined {
+    return this.jobs().find((j) => j.id === id);
+  }
   readonly selectedJobId = signal<string>('');
   readonly current = signal(0);
   readonly speaking = signal(false);

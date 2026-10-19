@@ -123,6 +123,17 @@ func (s *Service) completerFor(ctx context.Context, userID uuid.UUID) (Completer
 	return s.llm, nil
 }
 
+// ResumeForJob is the single rule for "which résumé applies": the version
+// tailored for this job when there is one, otherwise the base résumé. Every
+// feature that reads a résumé in the context of a job goes through here, so
+// switching job in the UI switches résumé everywhere.
+func (s *Service) ResumeForJob(ctx context.Context, userID uuid.UUID, job *career.Job) (*career.Resume, error) {
+	if job != nil && strings.TrimSpace(job.ResumeText) != "" {
+		return &career.Resume{UserID: userID, Headline: job.Title, RawText: job.ResumeText}, nil
+	}
+	return s.repo.FindResumeByUser(ctx, userID)
+}
+
 // GenerateInterview builds a personalized interview script from the stored
 // résumé + target job via the LLM, saves it, and returns it.
 func (s *Service) GenerateInterview(ctx context.Context, userID uuid.UUID, in GenerateInput) (*career.Interview, error) {
@@ -130,11 +141,10 @@ func (s *Service) GenerateInterview(ctx context.Context, userID uuid.UUID, in Ge
 	if level == "" {
 		level = "beginner"
 	}
-	resume, err := s.repo.FindResumeByUser(ctx, userID)
-	if err != nil {
-		return nil, fmt.Errorf("resume: %w", err)
-	}
-	var job *career.Job
+	var (
+		job *career.Job
+		err error
+	)
 	if in.JobID != "" {
 		jobID, parseErr := uuid.Parse(in.JobID)
 		if parseErr != nil {
@@ -146,6 +156,10 @@ func (s *Service) GenerateInterview(ctx context.Context, userID uuid.UUID, in Ge
 	}
 	if err != nil {
 		return nil, fmt.Errorf("job: %w", err)
+	}
+	resume, err := s.ResumeForJob(ctx, userID, job)
+	if err != nil {
+		return nil, fmt.Errorf("resume: %w", err)
 	}
 
 	llm, err := s.completerFor(ctx, userID)
@@ -650,13 +664,13 @@ func (s *Service) GeneratePrepPack(ctx context.Context, userID uuid.UUID, in Pre
 	if err != nil {
 		return nil, fmt.Errorf("invalid job id")
 	}
-	resume, err := s.repo.FindResumeByUser(ctx, userID)
-	if err != nil {
-		return nil, fmt.Errorf("resume: %w", err)
-	}
 	job, err := s.repo.FindJobByID(ctx, userID, jobID)
 	if err != nil {
 		return nil, fmt.Errorf("job: %w", err)
+	}
+	resume, err := s.ResumeForJob(ctx, userID, job)
+	if err != nil {
+		return nil, fmt.Errorf("resume: %w", err)
 	}
 
 	llm, err := s.completerFor(ctx, userID)
@@ -750,7 +764,7 @@ func (s *Service) CreateDebrief(ctx context.Context, userID uuid.UUID, in Debrie
 	}
 	// The résumé is optional here: the debrief is about what happened in the
 	// room, and we still want it to work for a user who skipped that step.
-	resume, _ := s.repo.FindResumeByUser(ctx, userID)
+	resume, _ := s.ResumeForJob(ctx, userID, job)
 
 	llm, err := s.completerFor(ctx, userID)
 	if err != nil {

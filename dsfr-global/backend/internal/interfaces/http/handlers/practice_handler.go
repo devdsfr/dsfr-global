@@ -304,7 +304,11 @@ func (h *PracticeHandler) ListTailorings(c *gin.Context) {
 }
 
 func tailoringJSON(t *career.Tailoring) gin.H {
-	return gin.H{"id": t.ID.String(), "job_title": t.JobTitle, "job_text": t.JobText,
+	jobID := ""
+	if t.JobID != uuid.Nil {
+		jobID = t.JobID.String()
+	}
+	return gin.H{"id": t.ID.String(), "job_id": jobID, "job_title": t.JobTitle, "job_text": t.JobText,
 		"original_resume": t.OriginalResume, "before": t.Before,
 		"tailored_resume": t.TailoredResume, "after": t.After,
 		"changes": t.Changes, "created_at": t.CreatedAt.Format(time.RFC3339)}
@@ -381,7 +385,49 @@ func (h *PracticeHandler) LatestInterview(c *gin.Context) {
 func jobJSON(j *career.Job) gin.H {
 	return gin.H{"id": j.ID.String(), "title": j.Title, "company": j.Company,
 		"seniority": j.Seniority, "stack": j.Stack, "raw_text": j.RawText,
-		"is_active": j.IsActive, "updated_at": j.UpdatedAt}
+		"is_active": j.IsActive, "updated_at": j.UpdatedAt,
+		"resume_text": j.ResumeText, "resume_score": j.ResumeScore,
+		"has_tailored_resume": j.ResumeText != "", "resume_updated_at": j.ResumeUpdatedAt}
+}
+
+// SaveJobResume godoc: PUT /api/v1/jobs/:id/resume
+func (h *PracticeHandler) SaveJobResume(c *gin.Context) {
+	userID, ok := currentUserID(c)
+	if !ok {
+		return
+	}
+	jobID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid job id"})
+		return
+	}
+	var in practice.JobResumeInput
+	if !bind(c, &in) {
+		return
+	}
+	if err := h.svc.SaveJobResume(c.Request.Context(), userID, jobID, in); err != nil {
+		respondCareerError(c, err)
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
+// ClearJobResume godoc: DELETE /api/v1/jobs/:id/resume — back to the base résumé.
+func (h *PracticeHandler) ClearJobResume(c *gin.Context) {
+	userID, ok := currentUserID(c)
+	if !ok {
+		return
+	}
+	jobID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid job id"})
+		return
+	}
+	if err := h.svc.ClearJobResume(c.Request.Context(), userID, jobID); err != nil {
+		respondCareerError(c, err)
+		return
+	}
+	c.Status(http.StatusNoContent)
 }
 
 func interviewJSON(i *career.Interview) gin.H {

@@ -78,14 +78,26 @@ export class PracticeService {
     });
   }
 
-  analyzeMatch(jobText: string, resumeText: string): Observable<MatchAnalysis> {
+  analyzeMatch(jobText: string, resumeText: string, jobId?: string): Observable<MatchAnalysis> {
     return this.http.post<MatchAnalysis>(`${this.api}/tailor/analyze`, {
       job_text: jobText,
-      resume_text: resumeText
+      resume_text: resumeText,
+      ...(jobId ? { job_id: jobId } : {})
     });
   }
 
+  /** Stores a resume version as the one used for a job (interviews, prep, debrief). */
+  saveJobResume(jobId: string, resumeText: string, score: number): Observable<void> {
+    return this.http.put<void>(`${this.api}/jobs/${jobId}/resume`, { resume_text: resumeText, score });
+  }
+
+  /** Makes a job fall back to the base resume. */
+  clearJobResume(jobId: string): Observable<void> {
+    return this.http.delete<void>(`${this.api}/jobs/${jobId}/resume`);
+  }
+
   tailorResume(payload: {
+    job_id?: string;
     job_title: string;
     job_text: string;
     resume_text: string;

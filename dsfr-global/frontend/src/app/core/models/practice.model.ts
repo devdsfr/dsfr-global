@@ -13,9 +13,15 @@ export interface Job {
   raw_text: string;
   is_active: boolean;
   updated_at?: string;
+  /** Resume tailored for this job; empty = the base resume is used. */
+  resume_text: string;
+  /** Latest 0-10 match score of whichever resume this job uses (0 = never scored). */
+  resume_score: number;
+  has_tailored_resume: boolean;
+  resume_updated_at?: string | null;
 }
 
-export type JobInput = Omit<Job, 'id' | 'is_active' | 'updated_at'>;
+export type JobInput = Pick<Job, 'title' | 'company' | 'seniority' | 'stack' | 'raw_text'>;
 
 export interface InterviewTurn {
   interviewer: string;
@@ -153,6 +159,7 @@ export interface MatchAnalysis {
 
 export interface Tailoring {
   id: string;
+  job_id: string;
   job_title: string;
   job_text: string;
   original_resume: string;

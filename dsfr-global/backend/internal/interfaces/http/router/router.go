@@ -47,6 +47,8 @@ func New(cfg *config.Config, tokens *security.TokenManager,
 			protected.PUT("/jobs/:id", practiceHandler.UpdateJob)
 			protected.DELETE("/jobs/:id", practiceHandler.DeleteJob)
 			protected.POST("/jobs/:id/activate", practiceHandler.ActivateJob)
+			protected.PUT("/jobs/:id/resume", practiceHandler.SaveJobResume)
+			protected.DELETE("/jobs/:id/resume", practiceHandler.ClearJobResume)
 			protected.GET("/scores", practiceHandler.Scores)
 			protected.GET("/scores/topics", practiceHandler.TopicBreakdown)
 			protected.GET("/interview/topics", practiceHandler.Topics)

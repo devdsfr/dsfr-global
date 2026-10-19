@@ -17,13 +17,15 @@ var DefaultModels = map[string]string{
 	"openai":    "gpt-4o-mini",
 	"anthropic": "claude-haiku-4-5-20251001",
 	"gemini":    "gemini-flash-latest",
+	"groq":      "openai/gpt-oss-120b",
 }
 
 // Model names always start with a letter (gpt-4o-mini, claude-…, gemini-…).
 // Anything else — most often a project number or account ID pasted by mistake —
 // is rejected so we fall back to the provider default instead of failing the
-// call with a confusing "model not found" from the provider.
-var validModel = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9._-]{1,79}$`)
+// call with a confusing "model not found" from the provider. A "/" is allowed
+// for namespaced models such as Groq's "openai/gpt-oss-120b".
+var validModel = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9._/-]{1,79}$`)
 
 // SanitizeModel returns the model if it looks like a real model name,
 // otherwise the provider's default.
@@ -44,6 +46,8 @@ func ForProvider(provider, apiKey, model string) (Completer, error) {
 		return NewAnthropicClient(apiKey, model), nil
 	case "gemini":
 		return NewGeminiClient(apiKey, model), nil
+	case "groq":
+		return NewGroqClient(apiKey, model), nil
 	default:
 		return nil, fmt.Errorf("unknown AI provider %q", provider)
 	}

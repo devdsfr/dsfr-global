@@ -88,7 +88,8 @@ func (r *CareerRepository) DeleteJob(ctx context.Context, userID, jobID uuid.UUI
 
 func (r *CareerRepository) ListJobsByUser(ctx context.Context, userID uuid.UUID) ([]career.Job, error) {
 	rows, err := r.pool.Query(ctx, `
-		SELECT id, user_id, title, company, seniority, stack, raw_text, is_active, created_at, updated_at
+		SELECT id, user_id, title, company, seniority, stack, raw_text, is_active,
+		       resume_text, resume_score, resume_updated_at, created_at, updated_at
 		FROM jobs WHERE user_id=$1 ORDER BY is_active DESC, created_at DESC`, userID)
 	if err != nil {
 		return nil, err
@@ -99,7 +100,8 @@ func (r *CareerRepository) ListJobsByUser(ctx context.Context, userID uuid.UUID)
 	for rows.Next() {
 		var j career.Job
 		if err := rows.Scan(&j.ID, &j.UserID, &j.Title, &j.Company, &j.Seniority, &j.Stack,
-			&j.RawText, &j.IsActive, &j.CreatedAt, &j.UpdatedAt); err != nil {
+			&j.RawText, &j.IsActive, &j.ResumeText, &j.ResumeScore, &j.ResumeUpdatedAt,
+			&j.CreatedAt, &j.UpdatedAt); err != nil {
 			return nil, err
 		}
 		jobs = append(jobs, j)
@@ -109,7 +111,8 @@ func (r *CareerRepository) ListJobsByUser(ctx context.Context, userID uuid.UUID)
 
 func (r *CareerRepository) FindJobByID(ctx context.Context, userID, jobID uuid.UUID) (*career.Job, error) {
 	return r.scanJob(r.pool.QueryRow(ctx, `
-		SELECT id, user_id, title, company, seniority, stack, raw_text, is_active, created_at, updated_at
+		SELECT id, user_id, title, company, seniority, stack, raw_text, is_active,
+		       resume_text, resume_score, resume_updated_at, created_at, updated_at
 		FROM jobs WHERE id=$1 AND user_id=$2`, jobID, userID))
 }
 
@@ -117,7 +120,8 @@ func (r *CareerRepository) FindJobByID(ctx context.Context, userID, jobID uuid.U
 // recent one so practice still works if nothing was explicitly selected.
 func (r *CareerRepository) FindActiveJob(ctx context.Context, userID uuid.UUID) (*career.Job, error) {
 	return r.scanJob(r.pool.QueryRow(ctx, `
-		SELECT id, user_id, title, company, seniority, stack, raw_text, is_active, created_at, updated_at
+		SELECT id, user_id, title, company, seniority, stack, raw_text, is_active,
+		       resume_text, resume_score, resume_updated_at, created_at, updated_at
 		FROM jobs WHERE user_id=$1 ORDER BY is_active DESC, created_at DESC LIMIT 1`, userID))
 }
 
@@ -141,10 +145,37 @@ func (r *CareerRepository) SetActiveJob(ctx context.Context, userID, jobID uuid.
 	return tx.Commit(ctx)
 }
 
+// SetJobResume links a résumé version to a job. An empty text unlinks it, so
+// the job falls back to the base résumé.
+func (r *CareerRepository) SetJobResume(ctx context.Context, userID, jobID uuid.UUID, text string, score float64) error {
+	var updated any
+	if text != "" {
+		updated = time.Now().UTC()
+	}
+	tag, err := r.pool.Exec(ctx, `
+		UPDATE jobs SET resume_text=$3, resume_score=$4, resume_updated_at=$5, updated_at=now()
+		WHERE id=$1 AND user_id=$2`, jobID, userID, text, score, updated)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return career.ErrNotFound
+	}
+	return nil
+}
+
+// SetJobScore records the latest match score without touching the résumé text.
+func (r *CareerRepository) SetJobScore(ctx context.Context, userID, jobID uuid.UUID, score float64) error {
+	_, err := r.pool.Exec(ctx, `UPDATE jobs SET resume_score=$3 WHERE id=$1 AND user_id=$2`,
+		jobID, userID, score)
+	return err
+}
+
 func (r *CareerRepository) scanJob(row pgx.Row) (*career.Job, error) {
 	var j career.Job
 	err := row.Scan(&j.ID, &j.UserID, &j.Title, &j.Company, &j.Seniority, &j.Stack,
-		&j.RawText, &j.IsActive, &j.CreatedAt, &j.UpdatedAt)
+		&j.RawText, &j.IsActive, &j.ResumeText, &j.ResumeScore, &j.ResumeUpdatedAt,
+		&j.CreatedAt, &j.UpdatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, career.ErrNotFound
 	}
@@ -437,6 +468,14 @@ func (r *CareerRepository) RecentQuestions(ctx context.Context, userID uuid.UUID
 	return questions, rows.Err()
 }
 
+// nullableUUID stores uuid.Nil as SQL NULL.
+func nullableUUID(id uuid.UUID) any {
+	if id == uuid.Nil {
+		return nil
+	}
+	return id
+}
+
 func (r *CareerRepository) SaveTailoring(ctx context.Context, t *career.Tailoring) error {
 	before, err := json.Marshal(t.Before)
 	if err != nil {
@@ -453,17 +492,18 @@ func (r *CareerRepository) SaveTailoring(ctx context.Context, t *career.Tailorin
 	_, err = r.pool.Exec(ctx, `
 		INSERT INTO resume_tailorings
 		  (id, user_id, job_title, job_text, original_resume, before_analysis,
-		   tailored_resume, after_analysis, changes)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+		   tailored_resume, after_analysis, changes, job_id)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
 		t.ID, t.UserID, t.JobTitle, t.JobText, t.OriginalResume, before,
-		t.TailoredResume, after, changes)
+		t.TailoredResume, after, changes, nullableUUID(t.JobID))
 	return err
 }
 
 func (r *CareerRepository) ListTailorings(ctx context.Context, userID uuid.UUID, limit int) ([]career.Tailoring, error) {
 	rows, err := r.pool.Query(ctx, `
 		SELECT id, user_id, job_title, job_text, original_resume, before_analysis,
-		       tailored_resume, after_analysis, changes, created_at
+		       tailored_resume, after_analysis, changes,
+		       COALESCE(job_id, '00000000-0000-0000-0000-000000000000'::uuid), created_at
 		FROM resume_tailorings WHERE user_id=$1
 		ORDER BY created_at DESC LIMIT $2`, userID, limit)
 	if err != nil {
@@ -478,7 +518,7 @@ func (r *CareerRepository) ListTailorings(ctx context.Context, userID uuid.UUID,
 			before, after, change []byte
 		)
 		if err := rows.Scan(&t.ID, &t.UserID, &t.JobTitle, &t.JobText, &t.OriginalResume,
-			&before, &t.TailoredResume, &after, &change, &t.CreatedAt); err != nil {
+			&before, &t.TailoredResume, &after, &change, &t.JobID, &t.CreatedAt); err != nil {
 			return nil, err
 		}
 		if err := json.Unmarshal(before, &t.Before); err != nil {

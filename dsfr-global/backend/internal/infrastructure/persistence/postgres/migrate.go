@@ -170,6 +170,14 @@ CREATE TABLE IF NOT EXISTS resume_tailorings (
 
 CREATE INDEX IF NOT EXISTS idx_tailorings_user_created ON resume_tailorings (user_id, created_at DESC);
 
+-- Each job carries the résumé used for it. Empty = fall back to the base
+-- résumé. Interviews, prep packs and debriefs for a job all read from here, so
+-- switching job switches résumé.
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS resume_text TEXT NOT NULL DEFAULT '';
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS resume_score DOUBLE PRECISION NOT NULL DEFAULT 0;
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS resume_updated_at TIMESTAMPTZ;
+ALTER TABLE resume_tailorings ADD COLUMN IF NOT EXISTS job_id UUID REFERENCES jobs(id) ON DELETE SET NULL;
+
 -- Per-user AI provider configuration (BYOK). api_key_enc is AES-GCM encrypted.
 CREATE TABLE IF NOT EXISTS ai_settings (
     user_id     UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
@@ -178,6 +186,10 @@ CREATE TABLE IF NOT EXISTS ai_settings (
     model       VARCHAR(80) NOT NULL DEFAULT '',
     updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+-- Groq added later: widen the provider check on existing databases.
+ALTER TABLE ai_settings DROP CONSTRAINT IF EXISTS ai_settings_provider_check;
+ALTER TABLE ai_settings ADD CONSTRAINT ai_settings_provider_check
+    CHECK (provider IN ('openai','anthropic','gemini','groq'));
 `
 
 // Migrate applies the schema. Safe to run on every startup.
