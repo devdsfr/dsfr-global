@@ -107,12 +107,26 @@ interface SpeechRecognitionLike extends EventTarget {
               </div>
             </div>
 
+            <div>
+              <label class="label">English level</label>
+              <div class="flex flex-wrap gap-2">
+                @for (l of levelOptions; track l.value) {
+                  <button type="button" [title]="l.hint"
+                          class="px-3 py-1.5 rounded-lg text-sm border transition-colors"
+                          [class]="level() === l.value
+                            ? 'bg-brand border-brand text-white'
+                            : 'border-surface-border text-gray-400 hover:text-gray-200'"
+                          (click)="setLevel(l.value)">{{ l.label }}</button>
+                }
+              </div>
+            </div>
+
             @if (topics().length) {
               <div>
                 <div class="flex items-baseline justify-between mb-2">
                   <label class="label mb-0">Topics</label>
                   <button type="button" class="text-xs text-brand hover:text-brand-hover"
-                          (click)="selectedTopics.set([])"
+                          (click)="clearTopics()"
                           [disabled]="!selectedTopics().length">Clear</button>
                 </div>
                 <div class="flex flex-wrap gap-2">
@@ -155,19 +169,27 @@ interface SpeechRecognitionLike extends EventTarget {
               </div>
             }
 
-            @if (interview()) {
+            @if (interview() && filtersChanged()) {
+              <p class="text-sm text-amber-300/90" role="status">
+                Filters changed — generate a new interview to apply them. Replaying the saved
+                script would repeat the same questions.
+              </p>
+            } @else if (interview()) {
               <p class="text-sm text-gray-400">
                 Saved script: {{ interview()!.turns.length }} questions ({{ interview()!.level }}).
+                Each new interview avoids the questions you were already asked.
               </p>
             }
             <div class="flex flex-wrap gap-3">
-              @if (interview()) {
-                <button class="btn-primary" (click)="startPractice()">▶ Start practice</button>
-              }
-              <button class="btn-primary" [class]="interview() ? 'bg-surface-border hover:bg-surface-border/70' : ''"
-                      (click)="generate()">
-                {{ interview() ? '↻ Generate new interview' : '✨ Generate my interview' }}
+              <!-- Generating fresh is the default action; replaying the last
+                   script is secondary, so new filters are never silently ignored. -->
+              <button class="btn-primary" (click)="generate()">
+                {{ interview() ? '✨ Generate new interview' : '✨ Generate my interview' }}
               </button>
+              @if (interview()) {
+                <button class="btn-primary bg-surface-border hover:bg-surface-border/70"
+                        (click)="startPractice()">↻ Replay last script</button>
+              }
             </div>
             @if (error()) { <p class="text-red-400 text-sm">{{ error() }}</p> }
           </div>
@@ -177,7 +199,7 @@ interface SpeechRecognitionLike extends EventTarget {
           <div class="card text-center py-16">
             <div class="inline-block h-8 w-8 border-2 border-brand border-t-transparent rounded-full animate-spin mb-4"></div>
             <p class="font-semibold">Building your interview…</p>
-            <p class="text-gray-400 text-sm mt-1">Reading your résumé and the job posting. ~20 seconds.</p>
+            <p class="text-gray-400 text-sm mt-1">Reading your resume and the job posting. ~20 seconds.</p>
           </div>
         }
 
@@ -534,6 +556,16 @@ export class InterviewsComponent implements OnInit, OnDestroy {
   readonly topics = signal<Topic[]>([]);
   readonly selectedTopics = signal<string[]>([]);
   readonly focus = signal<InterviewFocus>('mixed');
+  readonly level = signal('beginner');
+  /** True once any filter moved since the saved script was generated — replaying
+   *  that script would silently ignore the new filters. */
+  readonly filtersChanged = signal(false);
+
+  readonly levelOptions: ReadonlyArray<{ value: string; label: string; hint: string }> = [
+    { value: 'beginner', label: 'Beginner', hint: 'Short, simple sentences (A2).' },
+    { value: 'intermediate', label: 'Intermediate', hint: 'Natural, moderate complexity (B1-B2).' },
+    { value: 'advanced', label: 'Advanced', hint: 'Rich professional English (C1).' }
+  ];
   readonly breakdown = signal<TopicScore[]>([]);
 
   /** Topics scoring under 70 on content are what the candidate should drill next. */
@@ -591,10 +623,22 @@ export class InterviewsComponent implements OnInit, OnDestroy {
     this.selectedTopics.update((list) =>
       list.includes(id) ? list.filter((t) => t !== id) : [...list, id]
     );
+    this.filtersChanged.set(true);
+  }
+
+  clearTopics(): void {
+    this.selectedTopics.set([]);
+    this.filtersChanged.set(true);
   }
 
   setFocus(value: InterviewFocus): void {
     this.focus.set(value);
+    this.filtersChanged.set(true);
+  }
+
+  setLevel(value: string): void {
+    this.level.set(value);
+    this.filtersChanged.set(true);
   }
 
   answerMetrics(answer: SessionAnswerScore) {
@@ -662,6 +706,7 @@ export class InterviewsComponent implements OnInit, OnDestroy {
 
   selectJob(id: string): void {
     this.selectedJobId.set(id);
+    this.filtersChanged.set(true);
   }
 
   generate(): void {
@@ -669,7 +714,7 @@ export class InterviewsComponent implements OnInit, OnDestroy {
     this.error.set(null);
     this.practice
       .generateInterview(
-        'beginner',
+        this.level(),
         this.selectedJobId() || undefined,
         this.selectedTopics(),
         this.focus()
@@ -677,6 +722,7 @@ export class InterviewsComponent implements OnInit, OnDestroy {
       .subscribe({
         next: (script) => {
           this.interview.set(script);
+          this.filtersChanged.set(false);
           this.startPractice();
         },
         error: (err) => {

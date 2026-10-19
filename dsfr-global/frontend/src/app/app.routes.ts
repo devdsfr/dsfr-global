@@ -37,7 +37,7 @@ export const routes: Routes = [
       },
       {
         path: 'resume',
-        title: `My Résumé · ${APP}`,
+        title: `My Resume · ${APP}`,
         loadComponent: () =>
           import('./features/resume/resume.component').then((m) => m.ResumeComponent)
       },

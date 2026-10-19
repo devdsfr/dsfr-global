@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math/rand"
 	"strings"
 	"time"
 
@@ -157,7 +158,10 @@ func (s *Service) GenerateInterview(ctx context.Context, userID uuid.UUID, in Ge
 		focus = "mixed"
 	}
 
-	prompt := buildPrompt(resume, job, level, topics, focus)
+	// Best effort: without history the script is still valid, just less fresh.
+	previous, _ := s.repo.RecentQuestions(ctx, userID, 5)
+
+	prompt := buildPrompt(resume, job, level, topics, focus, previous, newVariety())
 	text, err := llm.Complete(ctx, prompt, 4000)
 	if err != nil {
 		return nil, err
@@ -175,7 +179,100 @@ func (s *Service) GenerateInterview(ctx context.Context, userID uuid.UUID, in Ge
 	return interview, nil
 }
 
-func buildPrompt(resume *career.Resume, job *career.Job, level string, topics []string, focus string) string {
+// variety is what makes two scripts for the same job differ. Without it the
+// same résumé + posting produced the same "most typical" questions every time.
+type variety struct {
+	interviewer string // who is asking, which changes tone and angle
+	behavioral  []string
+	opener      string
+}
+
+var interviewerStyles = []string{
+	"a friendly HR recruiter screening for communication and culture fit",
+	"a skeptical staff engineer who keeps asking \"why?\" and \"what would break?\"",
+	"a pragmatic engineering manager focused on delivery, deadlines and teamwork",
+	"a product-minded tech lead who cares about users and business impact",
+	"a senior architect probing scalability, reliability and design trade-offs",
+	"a startup CTO testing ownership, speed and wearing many hats",
+	"a hiring manager from a US company assessing remote-work readiness",
+}
+
+var behavioralThemes = []string{
+	"a conflict with a teammate and how it was resolved",
+	"a production incident the candidate handled",
+	"a deadline that was at risk",
+	"a decision the candidate later regretted",
+	"learning a new technology quickly",
+	"disagreeing with a manager or tech lead",
+	"mentoring or helping a less experienced developer",
+	"receiving tough feedback",
+	"working with people in other time zones",
+	"a project the candidate is most proud of",
+	"explaining a technical problem to a non-technical person",
+	"prioritising when everything is urgent",
+}
+
+var openers = []string{
+	"a classic introduction (\"tell me about yourself\")",
+	"why they want to work for a company abroad",
+	"what they know about the role and why it fits them",
+	"a walk through their current day-to-day work",
+	"their career path so far and where they want to go next",
+}
+
+// newVariety draws a fresh combination for every generated script.
+func newVariety() variety {
+	themes := rand.Perm(len(behavioralThemes))
+	return variety{
+		interviewer: interviewerStyles[rand.Intn(len(interviewerStyles))],
+		behavioral:  []string{behavioralThemes[themes[0]], behavioralThemes[themes[1]], behavioralThemes[themes[2]]},
+		opener:      openers[rand.Intn(len(openers))],
+	}
+}
+
+// structureFor lays out the 8 turns according to the chosen focus, so the
+// filter changes the interview itself and not just a hint in the prompt.
+func structureFor(focus string, v variety) string {
+	switch focus {
+	case "language":
+		return fmt.Sprintf(`Create an interview with EXACTLY 8 turns:
+- Turn 1: an opener about %s.
+- Turns 2-4: behavioral questions about: %s; %s; %s.
+- Turns 5-7: light technical questions, about the candidate's own experience rather than definitions.
+- Turn 8: a closing question (vary it — not always "do you have any questions for us?").`,
+			v.opener, v.behavioral[0], v.behavioral[1], v.behavioral[2])
+	case "technical":
+		return fmt.Sprintf(`Create an interview with EXACTLY 8 turns:
+- Turn 1: a short opener about %s.
+- Turns 2-7: SIX technical questions. Each must be a concrete scenario or follow-up
+  ("Your API latency doubled after a deploy — walk me through it"), never a
+  textbook definition ("What is REST?").
+- Turn 8: one behavioral question about %s.`,
+			v.opener, v.behavioral[0])
+	default: // mixed
+		return fmt.Sprintf(`Create an interview with EXACTLY 8 turns:
+- Turn 1: an opener about %s.
+- Turn 2: a behavioral question about %s.
+- Turns 3-7: FIVE technical questions, mixing concrete scenarios with experience questions.
+- Turn 8: a behavioral question about %s.`,
+			v.opener, v.behavioral[0], v.behavioral[1])
+	}
+}
+
+// avoidList tells the model what it already asked this user.
+func avoidList(previous []string) string {
+	if len(previous) == 0 {
+		return ""
+	}
+	if len(previous) > 40 {
+		previous = previous[:40]
+	}
+	return "ALREADY ASKED IN EARLIER SESSIONS — do NOT repeat or lightly paraphrase any of these; ask different questions:\n- " +
+		strings.Join(previous, "\n- ")
+}
+
+func buildPrompt(resume *career.Resume, job *career.Job, level string, topics []string,
+	focus string, previous []string, v variety) string {
 	levelGuide := map[string]string{
 		"beginner":     "The candidate is a beginner English speaker (A2). Answers must use very simple, natural spoken English: short sentences, common words, no idioms. 40-70 words per answer.",
 		"intermediate": "The candidate is an intermediate English speaker (B1-B2). Answers should use natural spoken English with moderate complexity. 60-90 words per answer.",
@@ -189,6 +286,8 @@ func buildPrompt(resume *career.Resume, job *career.Job, level string, topics []
 
 	return fmt.Sprintf(`You are generating a mock job-interview script for a tech professional practicing spoken English.
 
+THE INTERVIEWER is %s. Write every question in that person's voice and angle.
+
 TARGET JOB:
 Title: %s
 Seniority: %s
@@ -199,14 +298,14 @@ Posting:
 CANDIDATE RESUME:
 %s
 
-Create an interview with EXACTLY 8 turns:
-- Turns 1-2: HR/behavioral questions (introduction, motivation).
-- Turns 3-7: technical questions about the job's stack, appropriate for the seniority.
-- Turn 8: "Do you have any questions for us?" — the answer asks one good question back.
+%s
+
+%s
 
 %s
 
 %s
+
 %s
 
 The "answer" is what the candidate will READ ALOUD from a teleprompter, so it must be first-person, natural to speak, and grounded in the resume facts (do not invent employers or dates).
@@ -220,9 +319,12 @@ For every turn also return:
 
 Respond with ONLY this JSON, no markdown, no commentary:
 {"turns":[{"interviewer":"...","answer":"...","topic":"...","expected_points":["...","..."]}]}`,
+		v.interviewer,
 		job.Title, job.Seniority, job.Stack, truncate(job.RawText, 3000),
-		truncate(resume.RawText, 4000), levelGuide[level],
-		focusGuide[focus], topicInstruction(topics), topicIDList())
+		truncate(resume.RawText, 4000),
+		structureFor(focus, v), levelGuide[level], focusGuide[focus],
+		topicInstruction(topics), avoidList(previous),
+		topicIDList())
 }
 
 // topicInstruction narrows the technical turns to the chosen subjects. With no
@@ -236,8 +338,10 @@ func topicInstruction(topics []string) string {
 		labels = append(labels, career.TopicLabel(id))
 	}
 	return fmt.Sprintf(
-		"TOPICS: every technical turn (3-7) must target one of these subjects only — %s. "+
-			"Spread the turns across them rather than repeating one.",
+		"TOPICS (MANDATORY — this overrides the job posting): every technical turn must be about "+
+			"one of these subjects and nothing else — %s. Spread the technical turns across them, "+
+			"and tag each with the matching topic id. If the posting mentions other technologies, "+
+			"ignore them for this session.",
 		strings.Join(labels, ", "))
 }
 

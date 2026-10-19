@@ -51,7 +51,7 @@ import { PracticeService } from '../../core/services/practice.service';
           <div class="card text-center py-16">
             <div class="inline-block h-8 w-8 border-2 border-brand border-t-transparent rounded-full animate-spin mb-4"></div>
             <p class="font-semibold">Building your prep pack…</p>
-            <p class="text-gray-400 text-sm mt-1">Analyzing the job against your résumé. ~30 seconds.</p>
+            <p class="text-gray-400 text-sm mt-1">Analyzing the job against your resume. ~30 seconds.</p>
           </div>
         } @else if (pack()) {
           @if (pack(); as p) {

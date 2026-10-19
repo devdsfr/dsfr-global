@@ -104,6 +104,45 @@ type Scores struct {
 	SessionsPracticed      int `json:"sessions_practiced"`
 }
 
+// MatchRequirement is one requirement of a job posting and how the résumé
+// covers it.
+type MatchRequirement struct {
+	Requirement string `json:"requirement"`
+	Status      string `json:"status"` // met | partial | missing
+	Evidence    string `json:"evidence"`
+}
+
+// MatchBreakdown scores the résumé against the job on four axes, 0-10 each.
+type MatchBreakdown struct {
+	HardSkills float64 `json:"hard_skills"`
+	Experience float64 `json:"experience"`
+	Keywords   float64 `json:"keywords"`
+	Impact     float64 `json:"impact"`
+}
+
+// MatchAnalysis is how well a résumé, as written, matches a job (0-10).
+type MatchAnalysis struct {
+	Score           float64            `json:"score"`
+	Breakdown       MatchBreakdown     `json:"breakdown"`
+	Summary         string             `json:"summary"`
+	Requirements    []MatchRequirement `json:"requirements"`
+	MissingKeywords []string           `json:"missing_keywords"`
+}
+
+// Tailoring is one résumé adapted to one job, kept as history.
+type Tailoring struct {
+	ID             uuid.UUID
+	UserID         uuid.UUID
+	JobTitle       string
+	JobText        string
+	OriginalResume string
+	Before         MatchAnalysis
+	TailoredResume string
+	After          MatchAnalysis
+	Changes        []string
+	CreatedAt      time.Time
+}
+
 // PracticeSession is one finished mock interview, kept so the activity
 // calendar can show what was trained on a given day.
 type PracticeSession struct {

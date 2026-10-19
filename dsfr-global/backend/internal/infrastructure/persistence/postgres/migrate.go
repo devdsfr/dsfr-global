@@ -154,6 +154,22 @@ CREATE TABLE IF NOT EXISTS practice_sessions (
 
 CREATE INDEX IF NOT EXISTS idx_sessions_user_created ON practice_sessions (user_id, created_at DESC);
 
+-- Résumés tailored to a specific job, with the match score before and after.
+CREATE TABLE IF NOT EXISTS resume_tailorings (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id         UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    job_title       VARCHAR(200) NOT NULL DEFAULT '',
+    job_text        TEXT NOT NULL,
+    original_resume TEXT NOT NULL,
+    before_analysis JSONB NOT NULL,
+    tailored_resume TEXT NOT NULL,
+    after_analysis  JSONB NOT NULL,
+    changes         JSONB NOT NULL DEFAULT '[]'::jsonb,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_tailorings_user_created ON resume_tailorings (user_id, created_at DESC);
+
 -- Per-user AI provider configuration (BYOK). api_key_enc is AES-GCM encrypted.
 CREATE TABLE IF NOT EXISTS ai_settings (
     user_id     UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,

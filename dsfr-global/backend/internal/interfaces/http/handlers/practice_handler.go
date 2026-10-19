@@ -4,6 +4,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -216,6 +217,97 @@ func (h *PracticeHandler) ListSessions(c *gin.Context) {
 		})
 	}
 	c.JSON(http.StatusOK, out)
+}
+
+// respondTailorError maps bad uploads to 400 and everything else as usual.
+func respondTailorError(c *gin.Context, err error) {
+	if errors.Is(err, practice.ErrInvalidInput) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": strings.TrimPrefix(err.Error(), "invalid input: ")})
+		return
+	}
+	respondCareerError(c, err)
+}
+
+// ExtractDocument godoc: POST /api/v1/tailor/extract
+func (h *PracticeHandler) ExtractDocument(c *gin.Context) {
+	userID, ok := currentUserID(c)
+	if !ok {
+		return
+	}
+	var in practice.ExtractInput
+	if !bind(c, &in) {
+		return
+	}
+	text, err := h.svc.ExtractDocument(c.Request.Context(), userID, in)
+	if err != nil {
+		slog.Error("document extraction failed", "user", userID, "error", err)
+		respondTailorError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"text": text})
+}
+
+// AnalyzeMatch godoc: POST /api/v1/tailor/analyze
+func (h *PracticeHandler) AnalyzeMatch(c *gin.Context) {
+	userID, ok := currentUserID(c)
+	if !ok {
+		return
+	}
+	var in practice.AnalyzeMatchInput
+	if !bind(c, &in) {
+		return
+	}
+	out, err := h.svc.AnalyzeMatch(c.Request.Context(), userID, in)
+	if err != nil {
+		slog.Error("match analysis failed", "user", userID, "error", err)
+		respondTailorError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, out)
+}
+
+// TailorResume godoc: POST /api/v1/tailor
+func (h *PracticeHandler) TailorResume(c *gin.Context) {
+	userID, ok := currentUserID(c)
+	if !ok {
+		return
+	}
+	var in practice.TailorInput
+	if !bind(c, &in) {
+		return
+	}
+	t, err := h.svc.TailorResume(c.Request.Context(), userID, in)
+	if err != nil {
+		slog.Error("resume tailoring failed", "user", userID, "error", err)
+		respondTailorError(c, err)
+		return
+	}
+	c.JSON(http.StatusCreated, tailoringJSON(t))
+}
+
+// ListTailorings godoc: GET /api/v1/tailor
+func (h *PracticeHandler) ListTailorings(c *gin.Context) {
+	userID, ok := currentUserID(c)
+	if !ok {
+		return
+	}
+	list, err := h.svc.ListTailorings(c.Request.Context(), userID)
+	if err != nil {
+		respondCareerError(c, err)
+		return
+	}
+	out := make([]gin.H, 0, len(list))
+	for i := range list {
+		out = append(out, tailoringJSON(&list[i]))
+	}
+	c.JSON(http.StatusOK, out)
+}
+
+func tailoringJSON(t *career.Tailoring) gin.H {
+	return gin.H{"id": t.ID.String(), "job_title": t.JobTitle, "job_text": t.JobText,
+		"original_resume": t.OriginalResume, "before": t.Before,
+		"tailored_resume": t.TailoredResume, "after": t.After,
+		"changes": t.Changes, "created_at": t.CreatedAt.Format(time.RFC3339)}
 }
 
 // Scores godoc: GET /api/v1/scores

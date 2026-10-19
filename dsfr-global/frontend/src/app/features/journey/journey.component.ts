@@ -18,7 +18,7 @@ import { RouterLink } from '@angular/router';
       <section class="card">
         <h2 class="font-semibold mb-2">Coming soon</h2>
         <p class="text-gray-400 text-sm">
-          Your learning path is generated once the Learning AI has your résumé and target job
+          Your learning path is generated once the Learning AI has your resume and target job
           on file. In the meantime, head back to the
           <a routerLink="/dashboard" class="text-brand hover:text-brand-hover">Dashboard</a>
           to see your current readiness.

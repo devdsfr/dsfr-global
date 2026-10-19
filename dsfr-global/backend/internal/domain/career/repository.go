@@ -36,6 +36,13 @@ type Repository interface {
 	SavePrepPack(ctx context.Context, p *PrepPack) error
 	FindLatestPrepPack(ctx context.Context, userID, jobID uuid.UUID) (*PrepPack, error)
 
+	// RecentQuestions returns the interviewer questions of the user's latest
+	// scripts, so a new script can be told not to repeat them.
+	RecentQuestions(ctx context.Context, userID uuid.UUID, scripts int) ([]string, error)
+
+	SaveTailoring(ctx context.Context, t *Tailoring) error
+	ListTailorings(ctx context.Context, userID uuid.UUID, limit int) ([]Tailoring, error)
+
 	SaveSession(ctx context.Context, s *PracticeSession) error
 	ListSessionsByUser(ctx context.Context, userID uuid.UUID, limit int) ([]PracticeSession, error)
 

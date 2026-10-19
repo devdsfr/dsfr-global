@@ -409,6 +409,92 @@ func (r *CareerRepository) FindLatestPrepPack(ctx context.Context, userID, jobID
 	return &p, nil
 }
 
+func (r *CareerRepository) RecentQuestions(ctx context.Context, userID uuid.UUID, scripts int) ([]string, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT turns FROM interviews WHERE user_id=$1
+		ORDER BY created_at DESC LIMIT $2`, userID, scripts)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	questions := []string{}
+	for rows.Next() {
+		var raw []byte
+		if err := rows.Scan(&raw); err != nil {
+			return nil, err
+		}
+		var turns []career.InterviewTurn
+		if err := json.Unmarshal(raw, &turns); err != nil {
+			continue // a malformed old script should not block a new one
+		}
+		for _, t := range turns {
+			if t.Interviewer != "" {
+				questions = append(questions, t.Interviewer)
+			}
+		}
+	}
+	return questions, rows.Err()
+}
+
+func (r *CareerRepository) SaveTailoring(ctx context.Context, t *career.Tailoring) error {
+	before, err := json.Marshal(t.Before)
+	if err != nil {
+		return err
+	}
+	after, err := json.Marshal(t.After)
+	if err != nil {
+		return err
+	}
+	changes, err := json.Marshal(t.Changes)
+	if err != nil {
+		return err
+	}
+	_, err = r.pool.Exec(ctx, `
+		INSERT INTO resume_tailorings
+		  (id, user_id, job_title, job_text, original_resume, before_analysis,
+		   tailored_resume, after_analysis, changes)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+		t.ID, t.UserID, t.JobTitle, t.JobText, t.OriginalResume, before,
+		t.TailoredResume, after, changes)
+	return err
+}
+
+func (r *CareerRepository) ListTailorings(ctx context.Context, userID uuid.UUID, limit int) ([]career.Tailoring, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT id, user_id, job_title, job_text, original_resume, before_analysis,
+		       tailored_resume, after_analysis, changes, created_at
+		FROM resume_tailorings WHERE user_id=$1
+		ORDER BY created_at DESC LIMIT $2`, userID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	list := []career.Tailoring{}
+	for rows.Next() {
+		var (
+			t                     career.Tailoring
+			before, after, change []byte
+		)
+		if err := rows.Scan(&t.ID, &t.UserID, &t.JobTitle, &t.JobText, &t.OriginalResume,
+			&before, &t.TailoredResume, &after, &change, &t.CreatedAt); err != nil {
+			return nil, err
+		}
+		if err := json.Unmarshal(before, &t.Before); err != nil {
+			return nil, err
+		}
+		if err := json.Unmarshal(after, &t.After); err != nil {
+			return nil, err
+		}
+		if err := json.Unmarshal(change, &t.Changes); err != nil {
+			return nil, err
+		}
+		list = append(list, t)
+	}
+	return list, rows.Err()
+}
+
 func (r *CareerRepository) SaveSession(ctx context.Context, s *career.PracticeSession) error {
 	var interviewID, jobID any
 	if s.InterviewID != uuid.Nil {

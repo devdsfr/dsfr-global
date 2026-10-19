@@ -41,7 +41,7 @@ import { PracticeService } from '../../core/services/practice.service';
               <select id="seniority" class="input" formControlName="seniority">
                 <option value="">Select…</option>
                 <option value="Junior">Junior</option>
-                <option value="Mid-level">Mid-level (Pleno)</option>
+                <option value="Mid-level">Mid-level</option>
                 <option value="Senior">Senior</option>
                 <option value="Staff / Principal">Staff / Principal</option>
               </select>

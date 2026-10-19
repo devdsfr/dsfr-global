@@ -54,7 +54,7 @@ interface SpeechRecognitionLike extends EventTarget {
               <div class="flex items-center gap-2">
                 <select class="bg-surface border border-surface-border rounded-md text-xs px-2 py-1"
                         [(ngModel)]="dictationLang" name="dictationLang">
-                  <option value="pt-BR">Ditar em português</option>
+                  <option value="pt-BR">Dictate in Portuguese</option>
                   <option value="en-US">Dictate in English</option>
                 </select>
                 <button type="button"
@@ -70,7 +70,7 @@ interface SpeechRecognitionLike extends EventTarget {
           </div>
           <textarea id="notes" rows="10" class="input text-sm leading-relaxed"
                     [(ngModel)]="notes" name="notes"
-                    placeholder="Ex: Entrevista de 40 min com o tech lead. Perguntou como escalar um microserviço, falei de cache e réplicas mas travei na parte de Kubernetes. Depois perguntou sobre @Component e @Bean, respondi certo. No final não tinha perguntas preparadas..."></textarea>
+                    placeholder="e.g. 40-minute call with the tech lead. He asked how to scale a microservice — I talked about caching and replicas but froze on Kubernetes. Then he asked about @Component vs @Bean and I got it right. At the end I had no questions prepared..."></textarea>
           <p class="text-xs text-gray-400 mt-1.5">
             Write or dictate in Portuguese or English — the analysis always comes back in English.
             Minimum 40 characters.

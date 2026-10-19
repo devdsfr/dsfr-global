@@ -5,7 +5,7 @@ import { Observable } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import { AISettings, Debrief, Evaluation, Interview, InterviewFocus, Job, JobInput, PracticeSession, PrepPack, Resume, Scores, SessionScore, Topic, TopicScore } from '../models/practice.model';
 
-/** Résumé, target job and AI interview scripts. */
+/** Resume, target job and AI interview scripts. */
 @Injectable({ providedIn: 'root' })
 export class PracticeService {
   private readonly http = inject(HttpClient);
