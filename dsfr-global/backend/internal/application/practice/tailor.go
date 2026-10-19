@@ -238,6 +238,9 @@ JOB POSTING as strongly as possible WITHOUT inventing anything.
 
 STRICT RULES
 1. Never invent employers, job titles, dates, degrees, certifications, numbers or achievements.
+   Do not inflate scope either: "worked on" must not become "led", "database work" must not
+   become "managed data modeling", and no adjectives like "scalable" or "high-traffic" that
+   the resume does not support.
 2. You MAY: write a professional summary aimed at this job; reorder sections, bullets and
    skills so the most relevant come first; rephrase existing bullets with the posting's
    terminology; make explicit what the resume already implies.

@@ -135,6 +135,34 @@ export interface SessionScore {
   answers: SessionAnswerScore[];
 }
 
+export type RequirementStatus = 'met' | 'partial' | 'missing';
+
+export interface MatchRequirement {
+  requirement: string;
+  status: RequirementStatus;
+  evidence: string;
+}
+
+export interface MatchAnalysis {
+  score: number;
+  breakdown: { hard_skills: number; experience: number; keywords: number; impact: number };
+  summary: string;
+  requirements: MatchRequirement[];
+  missing_keywords: string[];
+}
+
+export interface Tailoring {
+  id: string;
+  job_title: string;
+  job_text: string;
+  original_resume: string;
+  before: MatchAnalysis;
+  tailored_resume: string;
+  after: MatchAnalysis;
+  changes: string[];
+  created_at: string;
+}
+
 export interface PracticeSession {
   id: string;
   job_title: string;

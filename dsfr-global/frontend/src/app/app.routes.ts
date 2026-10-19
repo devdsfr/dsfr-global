@@ -48,6 +48,12 @@ export const routes: Routes = [
           import('./features/job/job.component').then((m) => m.JobComponent)
       },
       {
+        path: 'tailor',
+        title: `Resume Match · ${APP}`,
+        loadComponent: () =>
+          import('./features/tailor/tailor.component').then((m) => m.TailorComponent)
+      },
+      {
         path: 'ai-settings',
         title: `AI Settings · ${APP}`,
         loadComponent: () =>

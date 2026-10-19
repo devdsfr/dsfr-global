@@ -95,6 +95,7 @@ export class ShellComponent {
     { label: 'Dashboard', path: '/dashboard', icon: '📊' },
     { label: 'My Resume', path: '/resume', icon: '📄' },
     { label: 'Target Job', path: '/job', icon: '🎯' },
+    { label: 'Resume Match', path: '/tailor', icon: '🧩' },
     { label: 'Interviews', path: '/interviews', icon: '🎤' },
     { label: 'Prep Pack', path: '/prep', icon: '📋' },
     { label: 'Debrief', path: '/debrief', icon: '📝' },

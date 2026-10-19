@@ -3,7 +3,7 @@ import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 
 import { environment } from '../../../environments/environment';
-import { AISettings, Debrief, Evaluation, Interview, InterviewFocus, Job, JobInput, PracticeSession, PrepPack, Resume, Scores, SessionScore, Topic, TopicScore } from '../models/practice.model';
+import { AISettings, Debrief, Evaluation, Interview, InterviewFocus, Job, JobInput, MatchAnalysis, PracticeSession, PrepPack, Resume, Scores, SessionScore, Tailoring, Topic, TopicScore } from '../models/practice.model';
 
 /** Resume, target job and AI interview scripts. */
 @Injectable({ providedIn: 'root' })
@@ -67,6 +67,36 @@ export class PracticeService {
 
   listSessions(): Observable<PracticeSession[]> {
     return this.http.get<PracticeSession[]>(`${this.api}/sessions`);
+  }
+
+  /** Turns a job screenshot or a resume PDF/DOCX into editable text. */
+  extractDocument(kind: 'job' | 'resume', mimeType: string, base64: string): Observable<{ text: string }> {
+    return this.http.post<{ text: string }>(`${this.api}/tailor/extract`, {
+      kind,
+      mime_type: mimeType,
+      data: base64
+    });
+  }
+
+  analyzeMatch(jobText: string, resumeText: string): Observable<MatchAnalysis> {
+    return this.http.post<MatchAnalysis>(`${this.api}/tailor/analyze`, {
+      job_text: jobText,
+      resume_text: resumeText
+    });
+  }
+
+  tailorResume(payload: {
+    job_title: string;
+    job_text: string;
+    resume_text: string;
+    confirmations: { requirement: string; note: string }[];
+    before: MatchAnalysis | null;
+  }): Observable<Tailoring> {
+    return this.http.post<Tailoring>(`${this.api}/tailor`, payload);
+  }
+
+  listTailorings(): Observable<Tailoring[]> {
+    return this.http.get<Tailoring[]>(`${this.api}/tailor`);
   }
 
   getPrepPack(jobId: string): Observable<PrepPack> {

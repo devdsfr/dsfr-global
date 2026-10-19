@@ -34,6 +34,7 @@ O fluxo completo do usuário:
 | **Dashboard** | DSFR Score, contadores (entrevistas treinadas, respostas pontuadas, entrevistas reais), calendário de treinos e lista de vagas | Implementado |
 | **My Résumé** | Cadastro do currículo em texto | Implementado |
 | **Target Job** | CRUD de vagas em cards, vaga ativa, atalho para treinar | Implementado |
+| **Resume Match** | Nota 0–10 do currículo contra uma vaga e versão adaptada usando só experiência real confirmada | Implementado |
 | **Interviews** | Geração do roteiro, teleprompter, voz da entrevistadora, gravação, relatório final | Implementado |
 | **Prep Pack** | Dossiê de preparação por vaga | Implementado |
 | **Debrief** | Análise de entrevista real, com ditado por voz | Implementado |
@@ -64,6 +65,20 @@ Nota final: `(conteúdo×4 + vocabulário×2 + fluência×2 + gramática×2) / 1
 **Limite honesto:** gramática offline detecta erros conhecidos, não faz crítica aberta de texto. Isso é uma troca deliberada por velocidade instantânea, custo zero e nenhum estouro de cota.
 
 ---
+
+## Resume Match (adaptar o currículo à vaga)
+
+Inspirado no fluxo do JobStep: pontuar, comparar com a vaga, adaptar.
+
+1. **Entrada** — a vaga por texto, print/PDF ou uma vaga salva; o currículo salvo, colado ou enviado (PDF, DOCX, TXT). DOCX é lido localmente em Go, sem IA; print e PDF são transcritos pelo provedor do usuário.
+2. **Análise** — nota de 0 a 10, breakdown (hard skills, experiência, keywords, impacto), cada requisito como *met / partial / missing* com o trecho do currículo que o comprova, e as keywords ausentes.
+3. **Nota ≥ 8** — currículo já forte para a vaga; não precisa reescrever.
+4. **Nota < 8** — o usuário marca o que **realmente já usou** e diz onde. A reescrita reordena, troca a terminologia pela da vaga, escreve um resumo direcionado e insere as habilidades confirmadas no cargo certo.
+5. **Re-score independente** — a versão nova é avaliada por uma chamada separada, com a mesma rubrica, para a nota "depois" não ser a IA corrigindo a própria prova.
+
+Regra central do prompt: nunca inventar empregador, cargo, data, certificação, número ou conquista, nem inflar escopo ("trabalhei em" não vira "liderei"). O que não está no currículo e não foi confirmado fica de fora. Se mesmo assim a nota não chega a 8, a tela diz com honestidade o que falta estudar. Testado contra o Gemini: com Kafka e AWS confirmados, a IA incluiu os dois no cargo certo e não adicionou Kubernetes, Terraform, GraphQL nem Datadog.
+
+Exporta em texto, cópia ou PDF (layout limpo, compatível com ATS, pelo "Salvar como PDF" do navegador). Histórico fica em `resume_tailorings`.
 
 ## Onde a IA é usada
 
