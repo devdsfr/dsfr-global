@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -62,6 +63,45 @@ type geminiGenConfig struct {
 // cannot have thinking disabled — omitting the field works across all versions.
 const minGeminiTokens = 2000
 
+// geminiThinkingHeadroom is added on top of what the caller asked for. Gemini
+// 3.x spends 2-3k tokens reasoning before it writes, out of the SAME output
+// budget. Measured on the interview prompt: thoughts 2.2k-2.8k + answer ~1.2k,
+// so a 4000 limit truncated about one call in five mid-JSON. Callers size their
+// budget for the answer; the headroom pays for the thinking.
+const geminiThinkingHeadroom = 4096
+
+// geminiBudget turns the caller's answer budget into Gemini's total budget.
+func geminiBudget(maxTokens int) int {
+	if maxTokens < minGeminiTokens {
+		maxTokens = minGeminiTokens
+	}
+	return maxTokens + geminiThinkingHeadroom
+}
+
+// geminiAnswer joins every non-thought text part. Gemini may split one answer
+// across several parts; returning only the first would cut the JSON short.
+// A MAX_TOKENS finish means the text is incomplete, so it is reported as an
+// error instead of being handed to a JSON parser as if it were whole.
+func geminiAnswer(parsed *geminiResponse) (string, error) {
+	if len(parsed.Candidates) == 0 {
+		return "", fmt.Errorf("gemini api: no candidates returned")
+	}
+	candidate := parsed.Candidates[0]
+	var text strings.Builder
+	for _, part := range candidate.Content.Parts {
+		if !part.Thought {
+			text.WriteString(part.Text)
+		}
+	}
+	if candidate.FinishReason == "MAX_TOKENS" {
+		return "", fmt.Errorf("gemini api: the answer was cut off by the token limit — please try again")
+	}
+	if text.Len() == 0 {
+		return "", fmt.Errorf("gemini api: empty response (finishReason=%s)", candidate.FinishReason)
+	}
+	return text.String(), nil
+}
+
 type geminiResponse struct {
 	Candidates []struct {
 		Content struct {
@@ -79,12 +119,9 @@ func (c *GeminiClient) Complete(ctx context.Context, prompt string, maxTokens in
 	if !c.Configured() {
 		return "", ErrNotConfigured
 	}
-	if maxTokens < minGeminiTokens {
-		maxTokens = minGeminiTokens
-	}
 	body, err := json.Marshal(geminiRequest{
 		Contents:         []geminiContent{{Parts: []geminiPart{{Text: prompt}}}},
-		GenerationConfig: geminiGenConfig{MaxOutputTokens: maxTokens},
+		GenerationConfig: geminiGenConfig{MaxOutputTokens: geminiBudget(maxTokens)},
 	})
 	if err != nil {
 		return "", err
@@ -117,18 +154,5 @@ func (c *GeminiClient) Complete(ctx context.Context, prompt string, maxTokens in
 	if parsed.Error != nil {
 		return "", fmt.Errorf("gemini api: %s", parsed.Error.Message)
 	}
-	if len(parsed.Candidates) == 0 {
-		return "", fmt.Errorf("gemini api: no candidates returned (status %d)", resp.StatusCode)
-	}
-	// Thinking models can return reasoning parts alongside the answer; take the
-	// first part that carries real output text.
-	for _, part := range parsed.Candidates[0].Content.Parts {
-		if !part.Thought && part.Text != "" {
-			return part.Text, nil
-		}
-	}
-	if parsed.Candidates[0].FinishReason == "MAX_TOKENS" {
-		return "", fmt.Errorf("gemini api: response hit the token limit before producing text; try a shorter résumé/job posting")
-	}
-	return "", fmt.Errorf("gemini api: empty response (finishReason=%s)", parsed.Candidates[0].FinishReason)
+	return geminiAnswer(&parsed)
 }

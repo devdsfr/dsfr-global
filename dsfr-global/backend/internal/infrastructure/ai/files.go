@@ -70,9 +70,6 @@ func (c *GeminiClient) CompleteWithFile(ctx context.Context, prompt, mimeType st
 	if !isImage(mimeType) && !isPDF(mimeType) {
 		return "", fmt.Errorf("unsupported file type %q", mimeType)
 	}
-	if maxTokens < minGeminiTokens {
-		maxTokens = minGeminiTokens
-	}
 	var payload geminiFileRequest
 	payload.Contents = make([]struct {
 		Parts []geminiFilePart `json:"parts"`
@@ -81,7 +78,7 @@ func (c *GeminiClient) CompleteWithFile(ctx context.Context, prompt, mimeType st
 		{InlineData: &geminiInlineData{MimeType: mimeType, Data: base64.StdEncoding.EncodeToString(data)}},
 		{Text: prompt},
 	}
-	payload.GenerationConfig = geminiGenConfig{MaxOutputTokens: maxTokens}
+	payload.GenerationConfig = geminiGenConfig{MaxOutputTokens: geminiBudget(maxTokens)}
 
 	url := fmt.Sprintf("https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent", c.model)
 	raw, err := postJSON(ctx, c.http, url, map[string]string{"X-goog-api-key": c.apiKey}, payload)
@@ -95,15 +92,7 @@ func (c *GeminiClient) CompleteWithFile(ctx context.Context, prompt, mimeType st
 	if parsed.Error != nil {
 		return "", fmt.Errorf("gemini api: %s", parsed.Error.Message)
 	}
-	if len(parsed.Candidates) == 0 {
-		return "", fmt.Errorf("gemini api: no candidates returned")
-	}
-	for _, part := range parsed.Candidates[0].Content.Parts {
-		if !part.Thought && part.Text != "" {
-			return part.Text, nil
-		}
-	}
-	return "", fmt.Errorf("gemini api: empty response (finishReason=%s)", parsed.Candidates[0].FinishReason)
+	return geminiAnswer(&parsed)
 }
 
 // ------------------------------------------------------------- Anthropic ----

@@ -3,6 +3,7 @@ package practice
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math/rand"
 	"strings"
@@ -161,14 +162,21 @@ func (s *Service) GenerateInterview(ctx context.Context, userID uuid.UUID, in Ge
 	// Best effort: without history the script is still valid, just less fresh.
 	previous, _ := s.repo.RecentQuestions(ctx, userID, 5)
 
-	prompt := buildPrompt(resume, job, level, topics, focus, previous, newVariety())
-	text, err := llm.Complete(ctx, prompt, 4000)
-	if err != nil {
-		return nil, err
-	}
-	turns, err := parseTurns(text)
-	if err != nil {
-		return nil, err
+	// One retry: model output is occasionally cut off or malformed, and a second
+	// attempt almost always succeeds — better than bouncing the error to the user.
+	var turns []career.InterviewTurn
+	for attempt := 1; attempt <= 2; attempt++ {
+		prompt := buildPrompt(resume, job, level, topics, focus, previous, newVariety())
+		text, callErr := llm.Complete(ctx, prompt, 4000)
+		if callErr == nil {
+			turns, callErr = parseTurns(text)
+		}
+		if callErr == nil {
+			break
+		}
+		if attempt == 2 || errors.Is(callErr, ai.ErrNotConfigured) {
+			return nil, callErr
+		}
 	}
 
 	interview := &career.Interview{ID: uuid.New(), UserID: userID, Level: level,
@@ -244,9 +252,11 @@ func structureFor(focus string, v variety) string {
 	case "technical":
 		return fmt.Sprintf(`Create an interview with EXACTLY 8 turns:
 - Turn 1: a short opener about %s.
-- Turns 2-7: SIX technical questions. Each must be a concrete scenario or follow-up
-  ("Your API latency doubled after a deploy — walk me through it"), never a
-  textbook definition ("What is REST?").
+- Turns 2-7: SIX technical questions. Each must be a concrete scenario, design choice
+  or follow-up drawn from real work — never a textbook definition. Make the six
+  DIFFERENT in kind: e.g. one design decision, one debugging/incident, one trade-off,
+  one "how would you test/secure/scale it", one code-review judgement, one about
+  something on the candidate's resume. Do not reuse the same scenario twice.
 - Turn 8: one behavioral question about %s.`,
 			v.opener, v.behavioral[0])
 	default: // mixed
