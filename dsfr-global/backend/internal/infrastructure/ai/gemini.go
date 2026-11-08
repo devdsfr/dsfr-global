@@ -13,9 +13,10 @@ import (
 
 // GeminiClient calls the Google Generative Language API.
 type GeminiClient struct {
-	apiKey string
-	model  string
-	http   *http.Client
+	apiKey  string
+	model   string
+	baseURL string // models endpoint; overridable in tests
+	http    *http.Client
 }
 
 // NewGeminiClient builds a client. apiKey may be empty; calls will then fail
@@ -25,9 +26,10 @@ func NewGeminiClient(apiKey, model string) *GeminiClient {
 		model = "gemini-flash-latest"
 	}
 	return &GeminiClient{
-		apiKey: apiKey,
-		model:  model,
-		http:   &http.Client{Timeout: 90 * time.Second},
+		apiKey:  apiKey,
+		model:   model,
+		baseURL: "https://generativelanguage.googleapis.com/v1beta/models",
+		http:    &http.Client{Timeout: 90 * time.Second},
 	}
 }
 
@@ -143,18 +145,49 @@ func isQuotaError(err error) bool {
 		strings.Contains(msg, "rate limit")
 }
 
-// generateWithFallback calls the configured model and, if its quota is spent,
-// retries once on the lite model.
+// isOverloadError recognises Google's temporary 503 "high demand" rejection.
+// It says nothing about the user's quota: the same call usually works seconds
+// later, or right away on a different model.
+func isOverloadError(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "high demand") ||
+		strings.Contains(msg, "overloaded") ||
+		strings.Contains(msg, "unavailable") ||
+		strings.Contains(msg, "try again later")
+}
+
+// overloadRetryDelay is the pause before retrying an overloaded model.
+var overloadRetryDelay = 2 * time.Second
+
+// generateWithFallback calls the configured model. On a temporary overload it
+// waits briefly and retries once; if the model is still overloaded or its
+// quota is spent, it retries once on the lite model.
 func (c *GeminiClient) generateWithFallback(ctx context.Context, payload any) (string, error) {
 	text, err := c.generate(ctx, c.model, payload)
-	if isQuotaError(err) && c.model != geminiFallbackModel {
+	if isOverloadError(err) {
+		select {
+		case <-time.After(overloadRetryDelay):
+		case <-ctx.Done():
+			return "", ctx.Err()
+		}
+		text, err = c.generate(ctx, c.model, payload)
+	}
+	if (isQuotaError(err) || isOverloadError(err)) && c.model != geminiFallbackModel {
 		fallbackText, fallbackErr := c.generate(ctx, geminiFallbackModel, payload)
 		if fallbackErr == nil {
 			return fallbackText, nil
 		}
+		if isOverloadError(fallbackErr) || isOverloadError(err) {
+			return "", fmt.Errorf("gemini api: Google's servers are overloaded right now (on both %s and %s) — "+
+				"wait a minute and try again, or switch to Groq (free) in AI Settings",
+				c.model, geminiFallbackModel)
+		}
 		if isQuotaError(fallbackErr) {
 			return "", fmt.Errorf("gemini api: the daily free quota is used up on both %s and %s — "+
-				"try again tomorrow, enable billing on your Google AI key, or switch provider in AI Settings",
+				"try again tomorrow, enable billing on your Google AI key, or switch to Groq (free) in AI Settings",
 				c.model, geminiFallbackModel)
 		}
 		return "", fallbackErr
@@ -170,8 +203,7 @@ func (c *GeminiClient) generate(ctx context.Context, model string, payload any) 
 	}
 	// The API key goes in the X-goog-api-key header, never in the query string:
 	// URLs end up in server/proxy logs, which would leak the user's key.
-	url := fmt.Sprintf(
-		"https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent", model)
+	url := fmt.Sprintf("%s/%s:generateContent", c.baseURL, model)
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
 		return "", err
